@@ -1,0 +1,11 @@
+services:
+  redis:
+    image: redis:7
+    container_name: redis-aof
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - ./redis-data:/redis-data                     # Redis data dir (persistent)
+      - ./redis.conf:/Users/thibauthurson/Workspace/projects/AssistantToTheRegionalManager/redis.conf  # Mount custom config
+    command: ["redis-server", "/Users/thibauthurson/Workspace/projects/AssistantToTheRegionalManager/redis.conf"]
