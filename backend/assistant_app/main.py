@@ -2,14 +2,19 @@ import os
 import json
 from fastapi import FastAPI, Request, HTTPException
 from fastapi.responses import RedirectResponse
-import urllib.parse
 from dotenv import load_dotenv
 import redis
 import uuid
+from api_integration.google_token_store import get_google_credencials
+from googleapiclient.discovery import build
+from googleapiclient.errors import HttpError
 
-from backend.assistant_app.agents.mistral_chat_agent import MistralChatAgent
-from backend.assistant_app.api_integration.oauth_client import exchange_code_for_token
-from backend.assistant_app.api_integration.token_store import save_token
+
+from api.v1.endpoints import tool_router
+from agents.mistral_chat_agent import MistralChatAgent
+from api_integration.oauth_client import exchange_code_for_token
+from api_integration.token_store import save_token
+
 
 load_dotenv()
 
@@ -20,6 +25,9 @@ api_name = "marktplaats"
 SCOPE = ""
 
 app = FastAPI()
+
+app.include_router(tool_router.router)
+
 r = redis.Redis(host="localhost", port=6379, db=0)
 
 @app.get("/login")
@@ -56,24 +64,37 @@ async def callback(request: Request):
     token = exchange_code_for_token(code)
 
     save_token(user_id, api_name, token)
-    print({"status": "success", "user_id": user_id})
 
     return {"status": "success", "user_id": user_id}
 
 def __main__():
-    with open('backend/assistant-app/configs/chat_config.json') as f:
-        config = json.load(f)
-    
-    chat_agent = MistralChatAgent(config=config)
 
-    while True:
-        user_input = input("Chat: ")
-        if user_input == "exit":
-            break
+    try:
 
-        content = chat_agent.run(input_data=user_input, session_id=SESSION_ID)
 
-        print(content)
+        creds = get_google_credencials()
+        # Call the Gmail API
+        service = build("gmail", "v1", credentials=creds)
+
+
+        from agents.tools.search_gmail import search_gmail
+
+        messages_payload = search_gmail(service, "after:2025/05/20")
+        print(messages_payload)
+
+    except HttpError as error:
+        # TODO(developer) - Handle errors from gmail API.
+        print(f"An error occurred: {error}")
+
+
+    # while True:
+    #     user_input = input("Chat: ")
+    #     if user_input == "exit":
+    #         break
+
+    #     content = chat_agent.run(input_data=user_input, session_id=SESSION_ID)
+
+    #     print(content)
 
 
 if __name__ == "__main__":
