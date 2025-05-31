@@ -1,6 +1,6 @@
 from mistralai import Mistral
-from backend.assistant_app.agents.base_agent import BaseAgent
-from backend.assistant_app.memory.redis_history_store import RedisHistoryStore
+from agents.base_agent import BaseAgent
+from memory.redis_history_store import RedisHistoryStore
 from mistralai import UserMessage
 import os
 from dotenv import load_dotenv
