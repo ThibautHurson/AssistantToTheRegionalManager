@@ -5,8 +5,9 @@ import redis
 import json
 
 class RedisHistoryStore:
-    def __init__(self, redis_url="redis://localhost:6379", ttl=None):
+    def __init__(self, redis_url="redis://127.0.0.1:6379", ttl=None):
         self.redis = redis.Redis.from_url(redis_url)
+        self.redis.flushdb() # Wipe current DB
         self.ttl = ttl  # Optional expiration (in seconds)
 
     def get(self, session_id: str) -> list[dict]:
