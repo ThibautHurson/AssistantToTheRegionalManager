@@ -7,5 +7,5 @@ services:
       - "6379:6379"
     volumes:
       - ./redis-data:/redis-data                     # Redis data dir (persistent)
-      - ./redis.conf:/Users/thibauthurson/Workspace/projects/AssistantToTheRegionalManager/redis.conf  # Mount custom config
-    command: ["redis-server", "/Users/thibauthurson/Workspace/projects/AssistantToTheRegionalManager/redis.conf"]
+      - ./redis.conf:/usr/local/etc/redis/redis.conf  # Mount custom config
+    command: ["redis-server", "/usr/local/etc/redis/redis.conf"]
