@@ -9,3 +9,31 @@ services:
       - ./redis-data:/redis-data                     # Redis data dir (persistent)
       - ./redis.conf:/usr/local/etc/redis/redis.conf  # Mount custom config
     command: ["redis-server", "/usr/local/etc/redis/redis.conf"]
+
+  fastapi:
+    build: .
+    env_file: .env
+    container_name: fastapi-app
+    depends_on:
+      - redis
+    ports:
+      - "8000:8000"
+    environment:
+      - REDIS_URL=redis://redis:6379  # IMPORTANT: Use the *service name* not localhost
+    volumes:
+      - .:/app
+    command: ["uvicorn", "backend.assistant_app.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
+
+  test-runner:
+    build: .
+    container_name: test-chat
+    depends_on:
+      - redis
+    environment:
+      - REDIS_URL=redis://redis:6379
+      - SESSION_ID=thibaut_hurson
+      - PYTHONPATH=/app
+    volumes:
+      - .:/app
+    working_dir: /app
+    entrypoint: ["python", "scripts/test_chat.py"]

@@ -1,0 +1,23 @@
+name: env
+channels:
+  - conda-forge
+  - defaults
+dependencies:
+  - python=3.12
+  - numpy
+  - pandas
+  - fastapi
+  - pydantic
+  - httpx
+  - python-dotenv
+  - matplotlib-inline
+  - typing-extensions
+  - google-auth
+  - google-auth-oauthlib
+  - google-api-python-client
+  - redis-py
+  - streamlit
+  - pip
+  - pip:
+      - mistralai
+      - uvicorn[standard]
