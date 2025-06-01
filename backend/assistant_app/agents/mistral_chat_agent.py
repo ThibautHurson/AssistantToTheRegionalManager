@@ -27,7 +27,8 @@ class MistralChatAgent(BaseAgent):
 
     @handle_httpx_errors
     def call_tool_via_router(self, tool_name: str, tool_args: dict) -> str:
-        url = f"http://127.0.0.1:8000/tools/run"
+        redirect_uri = os.getenv("REDIRECT_URI")
+        url = f"{redirect_uri}tools/run"
         response = httpx.post(url, json={"tool_name": tool_name, "args": tool_args})
         return response
     
@@ -74,6 +75,7 @@ class MistralChatAgent(BaseAgent):
                 content = message.content
                 message_history.append({"role": "assistant", "content": content})
                 self.history_store.save(session_id=session_id, history=message_history)
+                print(message_history)
                 return content
 
         return content

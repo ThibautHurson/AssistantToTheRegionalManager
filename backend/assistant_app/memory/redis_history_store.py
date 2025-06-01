@@ -1,12 +1,12 @@
-import sys
-print(sys.executable)
-
 import redis
 import json
+import os
 
 class RedisHistoryStore:
-    def __init__(self, redis_url="redis://127.0.0.1:6379", ttl=None):
+    def __init__(self, ttl=None):
+        redis_url = os.getenv("REDIS_URL", "redis://redis:6379")
         self.redis = redis.Redis.from_url(redis_url)
+        self.redis.flushdb()
         self.ttl = ttl  # Optional expiration (in seconds)
 
     def get(self, session_id: str) -> list[dict]:
