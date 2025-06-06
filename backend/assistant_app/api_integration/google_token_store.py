@@ -1,6 +1,5 @@
 import os
 from typing import Optional
-import json
 from google_auth_oauthlib.flow import Flow
 from google.oauth2.credentials import Credentials
 from google.auth.transport.requests import Request
@@ -14,7 +13,7 @@ SCOPES = [
     "openid",             # Required for ID token
     "https://www.googleapis.com/auth/userinfo.email",  
     "https://www.googleapis.com/auth/gmail.readonly"]
-REDIRECT_URI = os.getenv("REDIRECT_URI")  # e.g., http://localhost:8000/oauth2callback
+REDIRECT_URI = os.getenv("REDIRECT_URI")
 TOKEN_DIR = "google_setup/token_store"
 
 os.makedirs(TOKEN_DIR, exist_ok=True)

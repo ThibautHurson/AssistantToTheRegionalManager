@@ -3,7 +3,6 @@ import os
 from dotenv import load_dotenv
 import json
 import httpx
-import asyncio
 
 from backend.assistant_app.agents.base_agent import BaseAgent
 from backend.assistant_app.memory.redis_history_store import RedisHistoryStore
@@ -49,7 +48,6 @@ class MistralChatAgent(BaseAgent):
 
     async def run(self, input_data: str, session_id: str) -> str:
         message_history = self.history_store.get(session_id)
-
         message_history.append({"role": "user", "content": input_data})
 
         for step in range(self.max_steps):
