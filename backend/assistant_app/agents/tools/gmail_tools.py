@@ -2,11 +2,12 @@ from dotenv import load_dotenv
 import os
 import httpx
 import json
-from backend.assistant_app.utils.handle_errors import handle_httpx_errors
 import base64
 from backend.assistant_app.utils.tool_registry import register_tool
 
 load_dotenv()
+SESSION_ID = os.getenv("SESSION_ID")
+
 
 def _search_gmail(service, query: str):
     results = service.users().messages().list(userId='me', q=query).execute()
@@ -30,10 +31,10 @@ def _search_gmail(service, query: str):
 # Exposed tool to the agent (LLM sees only this interface)
 @register_tool
 def search_gmail(query: str):
-    from backend.assistant_app.api_integration.google_token_store import get_google_credencials
+    from backend.assistant_app.api_integration.google_token_store import load_credentials
     from googleapiclient.discovery import build
 
-    creds = get_google_credencials()
+    creds = load_credentials(SESSION_ID)
     service = build("gmail", "v1", credentials=creds)
 
     return _search_gmail(service, query)
