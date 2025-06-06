@@ -1,17 +1,21 @@
-import os
-import json
-from fastapi import FastAPI, Request, HTTPException
-from fastapi.responses import RedirectResponse
+from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 # from dotenv import load_dotenv
-import redis
-import uuid
-from backend.assistant_app.api_integration.google_token_store import get_google_credencials
+
 import backend.assistant_app.agents.tools
-from backend.assistant_app.api.v1.endpoints import tool_router
+from backend.assistant_app.api.v1.endpoints import tool_router, chat, oauth
 
 app = FastAPI()
 
-app.include_router(tool_router.router)
+# Add CORS middleware
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # In production, replace with specific origins
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
-redis_url = os.getenv("REDIS_URL", "redis://redis:6379")
-r = redis.Redis.from_url(redis_url)
+app.include_router(tool_router.router)
+app.include_router(chat.router)
+app.include_router(oauth.router)
