@@ -3,14 +3,12 @@ from pydantic import BaseModel
 from typing import Dict, Any
 import backend.assistant_app.agents.tools
 from backend.assistant_app.utils.tool_registry import tool_registry
-import asyncio
 
 class ToolCallRequest(BaseModel):
     tool_name: str
     args: Dict[str, Any]
 
 router = APIRouter()
-
 
 @router.post("/tools/run")
 async def run_tool_endpoint(request: ToolCallRequest):

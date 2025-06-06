@@ -1,20 +1,19 @@
 from dotenv import load_dotenv
 import os
-import httpx
 import json
 import base64
 from backend.assistant_app.utils.tool_registry import register_tool
 
 load_dotenv()
 SESSION_ID = os.getenv("SESSION_ID")
-
+MAX_RESULTS = 10
 
 def _search_gmail(service, query: str):
-    results = service.users().messages().list(userId='me', q=query).execute()
+    results = service.users().messages().list(userId='me', q=query, maxResults=MAX_RESULTS).execute()
     messages = results.get('messages', [])
     messages_payload = []
 
-    for msg in messages[:2]:
+    for msg in messages[:MAX_RESULTS]:
         msg_data = service.users().messages().get(userId='me', id=msg['id'], format='full').execute()
         payload = msg_data['payload']
 
@@ -26,7 +25,7 @@ def _search_gmail(service, query: str):
                 yield base64.urlsafe_b64decode(part['body']['data']).decode()
 
         messages_payload.append("\n".join(get_parts(payload)))
-    return json.dumps(messages_payload[:1000])
+    return json.dumps(messages_payload)
 
 # Exposed tool to the agent (LLM sees only this interface)
 @register_tool

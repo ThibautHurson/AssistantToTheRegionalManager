@@ -2,20 +2,14 @@ import streamlit as st
 import os
 import httpx
 from dotenv import load_dotenv
-from urllib.parse import urlencode
 
 load_dotenv()
 
-SESSION_ID = os.getenv("SESSION_ID")
 TOKEN_ENDPOINT = "https://oauth2.googleapis.com/token"
 AUTH_ENDPOINT = "https://accounts.google.com/o/oauth2/v2/auth"
 SCOPE = "https://www.googleapis.com/auth/gmail.readonly"
-
-
-load_dotenv()
-
-FASTAPI_PUBLIC_URI = os.getenv("FASTAPI_BROWSER_URI", "http://localhost:8000")
 FASTAPI_URI = os.getenv("FASTAPI_URI")
+SESSION_ID = os.getenv("SESSION_ID")
 
 st.set_page_config(page_title="Chatbot", page_icon="🤖")
 
