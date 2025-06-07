@@ -5,9 +5,6 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-TOKEN_ENDPOINT = "https://oauth2.googleapis.com/token"
-AUTH_ENDPOINT = "https://accounts.google.com/o/oauth2/v2/auth"
-SCOPE = "https://www.googleapis.com/auth/gmail.readonly"
 FASTAPI_URI = os.getenv("FASTAPI_URI")
 SESSION_ID = os.getenv("SESSION_ID")
 

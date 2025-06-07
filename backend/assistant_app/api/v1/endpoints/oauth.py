@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Request
 from fastapi.responses import RedirectResponse, JSONResponse
 from backend.assistant_app.api_integration.google_token_store import (
-    get_authorization_url, exchange_code_for_token, load_credentials, fetch_user_email
+    get_authorization_url, exchange_code_for_token, load_credentials
 )
 
 router = APIRouter()

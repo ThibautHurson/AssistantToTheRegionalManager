@@ -8,23 +8,26 @@ load_dotenv()
 SESSION_ID = os.getenv("SESSION_ID")
 MAX_RESULTS = 10
 
+def get_gmail(service, message_id):
+    msg_data = service.users().messages().get(userId='me', id=message_id, format='full').execute()
+    payload = msg_data['payload']
+
+    def get_parts(part):
+        if 'parts' in part:
+            for sub_part in part['parts']:
+                yield from get_parts(sub_part)
+        elif part.get('mimeType') == 'text/plain' and 'data' in part['body']:
+            yield base64.urlsafe_b64decode(part['body']['data']).decode()
+
+    return "\n".join(get_parts(payload))
+
 def _search_gmail(service, query: str):
     results = service.users().messages().list(userId='me', q=query, maxResults=MAX_RESULTS).execute()
     messages = results.get('messages', [])
     messages_payload = []
 
     for msg in messages[:MAX_RESULTS]:
-        msg_data = service.users().messages().get(userId='me', id=msg['id'], format='full').execute()
-        payload = msg_data['payload']
-
-        def get_parts(part):
-            if 'parts' in part:
-                for sub_part in part['parts']:
-                    yield from get_parts(sub_part)
-            elif part.get('mimeType') == 'text/plain' and 'data' in part['body']:
-                yield base64.urlsafe_b64decode(part['body']['data']).decode()
-
-        messages_payload.append("\n".join(get_parts(payload)))
+        messages_payload.append(get_gmail(service, msg['id']))
     return json.dumps(messages_payload)
 
 # Exposed tool to the agent (LLM sees only this interface)
@@ -36,4 +39,4 @@ def search_gmail(query: str):
     creds = load_credentials(SESSION_ID)
     service = build("gmail", "v1", credentials=creds)
 
-    return _search_gmail(service, query)
+    return _search_gmail(service, query)    
