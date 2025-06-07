@@ -25,29 +25,34 @@ class MistralChatAgent(BaseAgent):
         self.tools = tools
         self.max_steps = max_steps
 
-    @handle_httpx_errors
-    def call_tool_via_router(self, tool_name: str, tool_args: dict) -> str:
-        redirect_uri = os.getenv("REDIRECT_URI")
-        url = f"{redirect_uri}tools/run"
-        response = httpx.post(url, json={"tool_name": tool_name, "args": tool_args})
-        return response
+    async def call_tool_via_router(self, tool_name: str, tool_args: dict) -> str:
+        print("In call_tool_via_router")
+        fast_api_uri = os.getenv("FASTAPI_URI")
+        url = f"{fast_api_uri}/tools/run"
+        print(f"Sending request to {url}...")
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            response = await client.post(url, json={"tool_name": tool_name, "args": tool_args})
+
+        response.raise_for_status()
+        return response.json()
     
     @retry_on_rate_limit(max_attempts=5, wait_seconds=1)
-    def call_mistral_with_retry(self, messages):
-        response = self.client.chat.complete(
+    async def call_mistral_with_retry(self, messages):
+        print("Calling mistral")
+        response = await self.client.chat.complete_async(
             model=self.model,
             messages=messages,
             tools=self.tools,
         )
         return response
 
-    def run(self, input_data: str, session_id: str) -> str:
+    async def run(self, input_data: str, session_id: str) -> str:
         message_history = self.history_store.get(session_id)
-
         message_history.append({"role": "user", "content": input_data})
 
         for step in range(self.max_steps):
-            response = self.call_mistral_with_retry(messages=message_history)
+            print(f"Step {step+1}")
+            response = await self.call_mistral_with_retry(messages=message_history)
             message = response.choices[0].message
 
             # Step 1: Check if the LLM wants to call a tool
@@ -56,10 +61,11 @@ class MistralChatAgent(BaseAgent):
 
                 tool_outputs = []
                 for tool_call in message.tool_calls:
+                    print(f"Tool chosen by Mistral: {tool_call.function.name}")
                     tool_name = tool_call.function.name
                     tool_args = json.loads(tool_call.function.arguments)
-
-                    result = self.call_tool_via_router(tool_name, tool_args)
+                    result = await self.call_tool_via_router(tool_name, tool_args)
+                    print(result)
                     tool_outputs.append({
                         "tool_call_id": tool_call.id,
                         "role": "tool",

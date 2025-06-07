@@ -13,8 +13,9 @@ router = APIRouter()
 @router.post("/tools/run")
 async def run_tool_endpoint(request: ToolCallRequest):
     try:
-        print(tool_registry)
-        return tool_registry.get(request.tool_name)(**request.args)
+        tool = tool_registry.get(request.tool_name)
+        result = tool(**request.args)
+        return result
     except Exception as e:
         import traceback
         traceback_str = traceback.format_exc()

@@ -20,20 +20,43 @@ services:
       - "8000:8000"
     environment:
       - REDIS_URL=redis://redis:6379  # IMPORTANT: Use the *service name* not localhost
+      - FASTAPI_URI=http://fastapi:8000
+      - REDIRECT_URI=http://localhost:8000/oauth2callback
     volumes:
       - .:/app
     command: ["uvicorn", "backend.assistant_app.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
-
-  test-runner:
-    build: .
-    container_name: test-chat
-    depends_on:
-      - redis
-    environment:
-      - REDIS_URL=redis://redis:6379
-      - SESSION_ID=thibaut_hurson
-      - PYTHONPATH=/app
+    healthcheck:
+        test: ["CMD", "curl", "-f", "http://localhost:8000/docs"]
+        interval: 30s
+        timeout: 10s
+        retries: 3
+        
+  streamlit:
+    build:
+      context: .
+      dockerfile: Dockerfile.streamlit
+    env_file: .env
+    container_name: streamlit-chatbot
+    ports:
+      - "8501:8501"
     volumes:
       - .:/app
-    working_dir: /app
-    entrypoint: ["python", "scripts/test_chat.py"]
+    environment:
+      - FASTAPI_URI=http://fastapi:8000
+    depends_on:
+      - fastapi
+
+  # test-runner:
+  #   build: .
+  #   env_file: .env
+  #   container_name: test-chat
+  #   depends_on:
+  #     - redis
+  #   environment:
+  #     - REDIS_URL=redis://redis:6379
+  #     - FASTAPI_URI=http://fastapi:8000/
+  #     - PYTHONPATH=/app
+  #   volumes:
+  #     - .:/app
+  #   working_dir: /app
+  #   entrypoint: ["python", "scripts/test_chat.py"]
