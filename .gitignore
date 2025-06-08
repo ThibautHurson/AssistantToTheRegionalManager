@@ -7,3 +7,5 @@ redis-data/
 __pycache__/
 
 .vscode
+
+google_setup/
