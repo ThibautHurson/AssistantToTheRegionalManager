@@ -7,7 +7,7 @@ import httpx
 from backend.assistant_app.agents.base_agent import BaseAgent
 from backend.assistant_app.memory.redis_history_store import RedisHistoryStore
 from backend.assistant_app.agents.prompts.prompt_builder import build_system_prompt
-from backend.assistant_app.utils.handle_errors import handle_httpx_errors, retry_on_rate_limit
+from backend.assistant_app.utils.handle_errors import retry_on_rate_limit_async
 
 class MistralChatAgent(BaseAgent):
     def __init__(self, config=None, history_store=None, system_prompt=None, tools=None, max_steps=5):
@@ -36,7 +36,7 @@ class MistralChatAgent(BaseAgent):
         response.raise_for_status()
         return response.json()
     
-    @retry_on_rate_limit(max_attempts=5, wait_seconds=1)
+    @retry_on_rate_limit_async(max_attempts=5, wait_seconds=1)
     async def call_mistral_with_retry(self, messages):
         print("Calling mistral")
         response = await self.client.chat.complete_async(
