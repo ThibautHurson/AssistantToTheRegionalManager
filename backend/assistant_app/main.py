@@ -6,8 +6,10 @@ from dotenv import load_dotenv
 import os
 
 import backend.assistant_app.agents.tools
-from backend.assistant_app.api.v1.endpoints import tool_router, chat, oauth, gmail_webhook
+from backend.assistant_app.api.v1.endpoints import tool_router, chat, oauth, gmail_webhook, task_router
 from backend.assistant_app.api_integration.google_token_store import load_credentials
+from backend.assistant_app.api_integration.db import engine
+from backend.assistant_app.models.task import Base
 
 
 load_dotenv()
@@ -22,6 +24,9 @@ SCOPES = [
 
 app = FastAPI()
 
+# Create database tables
+Base.metadata.create_all(bind=engine)
+
 # Add CORS middleware
 app.add_middleware(
     CORSMiddleware,
@@ -35,19 +40,4 @@ app.include_router(tool_router.router)
 app.include_router(chat.router)
 app.include_router(oauth.router)
 app.include_router(gmail_webhook.router)
-
-@app.on_event("startup")
-async def setup_gmail_watch():
-    creds = load_credentials(SESSION_ID)
-    service = build("gmail", "v1", credentials=creds)
-    
-    # Replace this with your actual topic
-    topic_name = f"projects/{GOOGLE_PROJECT_ID}/topics/{GOOGLE_TOPIC}"
-
-    # Set up watch on inbox
-    request = {
-        "labelIds": ["INBOX"],
-        "topicName": topic_name
-    }
-    response = service.users().watch(userId="me", body=request).execute()
-    print("Gmail watch response:", response)
+app.include_router(task_router.router)

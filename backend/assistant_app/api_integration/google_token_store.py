@@ -1,88 +1,192 @@
 import os
-from typing import Optional
+import json
+from typing import Optional, Tuple
 from google_auth_oauthlib.flow import Flow
 from google.oauth2.credentials import Credentials
 from google.auth.transport.requests import Request
+from googleapiclient.discovery import build
+import redis
 from dotenv import load_dotenv
 import httpx
+from backend.assistant_app.utils.redis_saver import save_to_redis
 
 load_dotenv()
 
-CLIENT_SECRET_FILE = os.getenv("GOOGLE_CLIENT_SECRET_JSON", "google_setup/credentials.json")
+# Redis configuration
+REDIS_HOST = os.getenv("REDIS_HOST", "redis-aof")
+REDIS_PORT = int(os.getenv("REDIS_PORT", 6379))
+REDIS_DB = int(os.getenv("REDIS_DB", 0))
+REDIS_PASSWORD = os.getenv("REDIS_PASSWORD", "")
+
+# Initialize Redis client
+redis_client = redis.Redis(
+    host=REDIS_HOST,
+    port=REDIS_PORT,
+    db=REDIS_DB,
+    password=REDIS_PASSWORD,
+    decode_responses=True
+)
+
+# Google OAuth2 configuration
+CLIENT_SECRET_FILE = os.getenv("GOOGLE_CLIENT_SECRET_FILE", "google_setup/client_secret.json")
+REDIRECT_URI = os.getenv("GOOGLE_REDIRECT_URI", "http://localhost:8000/oauth2callback")
+
 SCOPES = [
     "openid",             # Required for ID token
     "https://www.googleapis.com/auth/userinfo.email",  
-    "https://www.googleapis.com/auth/gmail.readonly"]
-REDIRECT_URI = os.getenv("REDIRECT_URI")
-TOKEN_DIR = "google_setup/token_store"
+    "https://www.googleapis.com/auth/gmail.readonly"
+]
 
-os.makedirs(TOKEN_DIR, exist_ok=True)
+def load_client_config():
+    """Load OAuth2 client configuration from file."""
+    if not os.path.exists(CLIENT_SECRET_FILE):
+        print(f"Client secret file not found at {CLIENT_SECRET_FILE}")
+        return None
 
-def _token_path(user_id: str) -> str:
-    return os.path.join(TOKEN_DIR, f"{user_id}.json")
-
+    with open(CLIENT_SECRET_FILE, 'r') as f:
+        return json.load(f)
 
 def load_credentials(user_id: str) -> Optional[Credentials]:
     print("in load_credentials")
-    path = _token_path(user_id)
-    if not os.path.exists(path):
-        print("Path not found")
-        return None
+    # Try Redis first
+    creds_json = redis_client.get(f"google_creds:{user_id}")
+    
+    # If not in Redis, try file backup
+    if not creds_json:
+        try:
+            with open(f'google_setup/token_store/{user_id}.json', 'r') as f:
+                creds_json = f.read()
+                # Restore to Redis
+                redis_client.set(f"google_creds:{user_id}", creds_json)
+        except FileNotFoundError:
+            print("No credentials found in Redis or file backup")
+            return None
 
-    creds = Credentials.from_authorized_user_file(path, SCOPES)
+    creds_dict = json.loads(creds_json)
+    creds = Credentials.from_authorized_user_info(creds_dict, SCOPES)
 
     if creds and creds.expired and creds.refresh_token:
         print("Credentials expired. Need to refresh")
-
         try:
             creds.refresh(Request())
             save_credentials(user_id, creds)
         except Exception as e:
             print(f"Error refreshing token: {e}")
             return None
-    print("load_credentials Returning credencials")
+    print("load_credentials Returning credentials")
     return creds if creds and creds.valid else None
 
-
 def save_credentials(user_id: str, creds: Credentials):
-    print("Saving credentials")
-    print(f"Credencials being saved at path: {_token_path(user_id)}")
-    with open(_token_path(user_id), "w") as f:
-        f.write(creds.to_json())
+    print("Saving credentials to Redis")
+    creds_dict = {
+        'token': creds.token,
+        'refresh_token': creds.refresh_token,
+        'token_uri': creds.token_uri,
+        'client_id': creds.client_id,
+        'client_secret': creds.client_secret,
+        'scopes': creds.scopes
+    }
+    # Save to Redis
+    redis_client.set(f"google_creds:{user_id}", json.dumps(creds_dict))
+    
+    # Backup to file
+    os.makedirs('google_setup/token_store', exist_ok=True)
+    with open(f'google_setup/token_store/{user_id}.json', 'w') as f:
+        json.dump(creds_dict, f)
 
+def save_to_redis(key: str, field: str, value: str):
+    """Save a value to Redis with a key and field."""
+    redis_client.set(f"{key}:{field}", value)
 
-def get_authorization_url(user_id: str):
-    creds = load_credentials(user_id)
-    print("load_credentials returned creds")
-    if creds and creds.valid:
-        print(f"Credentials valid: {creds.valid}")
-        return None  # Already authenticated
+def get_authorization_url(session_id: str) -> Tuple[Optional[str], Optional[Flow]]:
+    """
+    Get the authorization URL for Google OAuth2 flow.
+    Returns a tuple of (auth_url, flow) or (None, None) if already authenticated.
+    """
+    print("in get_authorization_url")
+    # First check if we already have valid credentials
+    existing = load_credentials(session_id)
+    if existing and existing.valid:
+        print("Valid credentials found")
+        return None, None
 
-    flow = Flow.from_client_secrets_file(
-        CLIENT_SECRET_FILE,
+    # Load client configuration
+    client_config = load_client_config()
+    if not client_config:
+        print("No client configuration found")
+        raise FileNotFoundError("Client secret file not found or invalid")
+
+    # Create Flow instance with explicit redirect URI
+    flow = Flow.from_client_config(
+        client_config,
         scopes=SCOPES,
-        redirect_uri=REDIRECT_URI,
+        redirect_uri=REDIRECT_URI  # Use the environment variable
     )
-    auth_url, _ = flow.authorization_url(
-        prompt='consent',
-        access_type='offline',
-        include_granted_scopes='true',
+
+    # Generate authorization URL
+    auth_url, state = flow.authorization_url(
+        access_type="offline",
+        include_granted_scopes="true",
+        prompt="consent"  # Force consent screen to ensure all scopes are granted
     )
-    # Save flow state in memory or session if needed
+
+    # Store state in Redis for verification
+    save_to_redis(session_id, "oauth_state", state)
+
     return auth_url, flow
 
 
-def exchange_code_for_token(code: str):
-    flow = Flow.from_client_secrets_file(
-        CLIENT_SECRET_FILE,
-        scopes=SCOPES,
-        redirect_uri=REDIRECT_URI,
-    )
-    flow.fetch_token(code=code)
-    creds = flow.credentials
-    user_id = fetch_user_email(creds)
-    save_credentials(user_id, creds)
-    return creds
+def exchange_code_for_token(code: str, state: str) -> Optional[Credentials]:
+    """Exchange authorization code for access token."""
+    print("in exchange_code_for_token")
+    try:
+        # Load client configuration
+        client_config = load_client_config()
+        if not client_config:
+            print("No client configuration found")
+            return None
+
+        # Create Flow instance with explicit redirect URI
+        flow = Flow.from_client_config(
+            client_config,
+            scopes=SCOPES,
+            redirect_uri=REDIRECT_URI  # Use the environment variable
+        )
+
+        # Exchange code for credentials
+        flow.fetch_token(code=code)
+        creds = flow.credentials
+
+        # Get user email from ID token
+        id_token = creds.id_token
+        if not id_token:
+            print("No ID token found in credentials")
+            return None
+
+        # Decode the JWT token
+        import jwt
+        try:
+            # Decode without verification since we trust Google's token
+            decoded_token = jwt.decode(id_token, options={"verify_signature": False})
+            email = decoded_token.get('email')
+            if not email:
+                print("No email found in ID token")
+                return None
+
+            print(f"Found email in ID token: {email}")
+            # Save credentials using email as user_id
+            save_credentials(email, creds)
+
+            return creds
+        except Exception as e:
+            print(f"Error decoding ID token: {e}")
+            return None
+
+    except Exception as e:
+        print(f"Error exchanging code for token: {e}")
+        import traceback
+        print(f"Traceback: {traceback.format_exc()}")
+        return None
 
 
 def fetch_user_email(creds):

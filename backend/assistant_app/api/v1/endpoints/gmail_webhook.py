@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Request
+from fastapi.responses import JSONResponse
 import base64
 from dotenv import load_dotenv
 import os
@@ -17,14 +18,14 @@ HISTORY_KEY = "historyId"
 @router.post("/gmail/push")
 async def gmail_webhook(request: Request):
     data = await request.json()
-    print(data)
+    print("Webhook received data:", data)
     message = data.get("message", {})  
     message_data = message.get("data")
 
     if message_data:
         decoded = json.loads(base64.b64decode(message_data).decode("utf-8"))
         email_address = decoded["emailAddress"]
-        print("New email notification:", email_address)
+        print("New email notification for:", email_address)
         history_id = decoded["historyId"]
 
     """
@@ -32,13 +33,22 @@ async def gmail_webhook(request: Request):
     you get from the webhook often does not contain the new message yet, we fetch the previous historyId
     from redis memory
     """
+    print(f"Loading history ID from Redis for email: {email_address}")
     start_history_id = load_from_redis(email_address, HISTORY_KEY)
+    print(f"Loaded history ID: {start_history_id}")
+    
     # Update historId in redis
     save_to_redis(email_address, HISTORY_KEY, history_id)
     if not start_history_id:
         start_history_id = str(int(history_id) - 10)  # fallback for first-time
 
+    print(f"Loading credentials for email: {email_address}")
     creds = load_credentials(email_address)
+    if not creds:
+        print(f"No credentials found in Redis for email: {email_address}")
+        return JSONResponse({"error": "User not authenticated"}, status_code=401)
+    
+    print("Credentials loaded successfully")
     service = build("gmail", "v1", credentials=creds)
 
     # Fetch history since history_id to get new messages

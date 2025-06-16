@@ -17,6 +17,9 @@ dependencies:
   - google-api-python-client
   - redis-py
   - streamlit
+  - sqlalchemy
+  - psycopg2
+  - alembic
   - pip
   - pip:
       - mistralai

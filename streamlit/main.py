@@ -2,6 +2,7 @@ import streamlit as st
 import os
 import httpx
 from dotenv import load_dotenv
+from task_manager import show_task_manager
 
 load_dotenv()
 
@@ -19,46 +20,28 @@ if "authenticated" not in st.session_state:
 if "chat_history" not in st.session_state:
     st.session_state.chat_history = []
 
-# 1. Check if user is authenticated
 def check_auth():
+    """Check if user is authenticated with Google"""
     try:
-        print(f"FASTAPI_URI value: {FASTAPI_URI}")
-        print(f"Full URL being called: {FASTAPI_URI}/authorize")
-        print(f"Session ID being sent: {SESSION_ID}")
-        
-        response = httpx.get(
+        auth_response = httpx.get(
             f"{FASTAPI_URI}/authorize",
             params={"session_id": SESSION_ID},
-            follow_redirects=True,
             verify=False  # Only for testing, remove in production
         )
+        auth_response.raise_for_status()
+        auth_data = auth_response.json()
         
-        print(f"Response status: {response.status_code}")
-        print(f"Response headers: {response.headers}")
-        
-        data = response.json()
-        print(f"Response data: {data}")
-        
-        if response.status_code == 200 and "Already authenticated" in data.get("message", ""):
-            print("Already Authenticated")
-            st.session_state.authenticated = True
-        elif response.status_code == 307:
-            auth_url = response.headers["location"]
-            st.markdown(f"Please [authenticate with Google]({auth_url}) to continue.")
+        if "auth_url" in auth_data:
+            st.markdown(f"Please complete the Google authentication process by visiting this URL: [Click here to authenticate]({auth_data['auth_url']})")
+            st.stop()
+        elif "error" in auth_data:
+            st.error(f"Authentication error: {auth_data['error']}")
+            st.stop()
         else:
-            st.error(f"Failed to check auth status. Status code: {response.status_code}")
-    except httpx.ReadTimeout:
-        st.error("Request timed out. The server took too long to respond.")
-        print("Read timeout error")
-    except httpx.ConnectTimeout:
-        st.error("Connection to backend timed out. Please ensure the backend service is running.")
-        print("Connection timeout error")
-    except httpx.ConnectError:
-        st.error("Could not connect to backend service. Please ensure it's running.")
-        print("Connection error")
-    except Exception as e:
-        st.error(f"Auth error: {e}")
-        print(f"Unexpected error: {e}")
+            st.session_state.authenticated = True
+    except httpx.HTTPError as e:
+        st.error(f"Error: {str(e)}")
+        st.stop()
 
 # 2. Display chat UI
 def show_chat():
@@ -88,4 +71,11 @@ if not st.session_state.authenticated:
     check_auth()
 
 if st.session_state.authenticated:
-    show_chat()
+    # Create tabs for different functionalities
+    tab1, tab2 = st.tabs(["Chat", "Task Manager"])
+    
+    with tab1:
+        show_chat()
+    
+    with tab2:
+        show_task_manager()
