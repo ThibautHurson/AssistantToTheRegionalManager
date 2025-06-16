@@ -53,11 +53,18 @@ class TaskManager:
         db.refresh(task)
         return Task(**task.__dict__)
 
-    def get_tasks(self, status: Optional[str] = None) -> List[Task]:
+    def get_tasks(self, status: Optional[str] = None, priority: Optional[int] = None) -> List[Task]:
         db = next(get_db())
         query = db.query(TaskModel).filter(TaskModel.user_id == self.user_id)
+        
         if status:
             query = query.filter(TaskModel.status == status)
+        if priority is not None:
+            query = query.filter(TaskModel.priority == priority)
+            
+        # Order by priority (high to low) and then by due date
+        query = query.order_by(desc(TaskModel.priority), TaskModel.due_date)
+        
         tasks = query.all()
         return [Task(**task.__dict__) for task in tasks]
 
@@ -106,4 +113,4 @@ class TaskManager:
 
 def get_task_manager(session_id: str = Query(..., description="Session ID")) -> TaskManager:
     """Get or create a task manager for a user"""
-    return TaskManager(session_id) 
+    return TaskManager(session_id)
