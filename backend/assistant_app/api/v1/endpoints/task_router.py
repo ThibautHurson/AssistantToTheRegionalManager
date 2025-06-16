@@ -3,7 +3,7 @@ from typing import List, Optional
 from datetime import datetime
 from pydantic import BaseModel
 
-from backend.assistant_app.agents.tools.task_tools import TaskManager, get_task_manager
+from backend.assistant_app.models.task_manager import TaskManager, get_task_manager
 
 router = APIRouter()
 

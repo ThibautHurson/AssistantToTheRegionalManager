@@ -24,9 +24,14 @@ class MistralChatAgent(BaseAgent):
         self.system_prompt = system_prompt or build_system_prompt()
         self.tools = tools
         self.max_steps = max_steps
+        self.current_session_id = None
 
     async def call_tool_via_router(self, tool_name: str, tool_args: dict) -> str:
         print("In call_tool_via_router")
+        # Inject session_id into tool arguments
+        if self.current_session_id:
+            tool_args["session_id"] = self.current_session_id
+            
         fast_api_uri = os.getenv("FASTAPI_URI")
         url = f"{fast_api_uri}/tools/run"
         print(f"Sending request to {url}...")
@@ -47,6 +52,9 @@ class MistralChatAgent(BaseAgent):
         return response
 
     async def run(self, input_data: str, session_id: str) -> str:
+        # Store the current session_id
+        self.current_session_id = session_id
+        
         message_history = self.history_store.get(session_id)
         message_history.append({"role": "user", "content": input_data})
 
