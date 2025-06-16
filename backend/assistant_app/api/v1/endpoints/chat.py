@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 import json
 
@@ -7,8 +7,7 @@ import backend.assistant_app.agents.tools  # this triggers registration
 from backend.assistant_app.utils.tool_registry import tool_registry
 from backend.assistant_app.agents.prompts.prompt_builder import build_system_prompt
 from backend.assistant_app.agents.tools.tools_schema import tools_schema
-
-from pydantic import BaseModel
+from backend.assistant_app.api_integration.google_token_store import load_credentials
 
 with open("backend/assistant_app/configs/chat_config.json") as f:
     config = json.load(f)
@@ -50,7 +49,24 @@ async def chat(
     4. Declare clear contracts — your route declares what it needs, and FastAPI wires it in.
     """
     print("Hit the chat endpoint")
-    content = await chat_agent.run(input_data=payload.input, 
-                                   session_id=payload.session_id)
-
-    return {"response": content}
+    
+    # Check if user is authenticated
+    creds = load_credentials(payload.session_id)
+    if not creds or not creds.valid:
+        raise HTTPException(
+            status_code=401,
+            detail="User not authenticated. Please complete the Google authentication process."
+        )
+    
+    try:
+        content = await chat_agent.run(input_data=payload.input, 
+                                    session_id=payload.session_id)
+        return {"response": content}
+    except Exception as e:
+        print(f"Error in chat endpoint: {e}")
+        import traceback
+        print(f"Traceback: {traceback.format_exc()}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Error processing chat request: {str(e)}"
+        )

@@ -1,4 +1,23 @@
+version: '3.8'
+
 services:
+  postgres:
+    image: postgres:15
+    container_name: postgres
+    environment:
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+      - POSTGRES_DB=taskmanager
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
   redis:
     image: redis:7
     container_name: redis-aof
@@ -9,6 +28,8 @@ services:
       - ./redis-data:/redis-data                     # Redis data dir (persistent)
       - ./redis.conf:/usr/local/etc/redis/redis.conf  # Mount custom config
     command: ["redis-server", "/usr/local/etc/redis/redis.conf"]
+    stop_grace_period: 30s
+    stop_signal: SIGTERM
 
   fastapi:
     build: .
@@ -16,12 +37,18 @@ services:
     container_name: fastapi-app
     depends_on:
       - redis
+      - postgres
     ports:
       - "8000:8000"
     environment:
       - REDIS_URL=redis://redis:6379  # IMPORTANT: Use the *service name* not localhost
       - FASTAPI_URI=http://fastapi:8000
       - REDIRECT_URI=http://localhost:8000/oauth2callback
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+      - POSTGRES_HOST=postgres
+      - POSTGRES_PORT=5432
+      - POSTGRES_DB=taskmanager
     volumes:
       - .:/app
     command: ["uvicorn", "backend.assistant_app.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
@@ -46,17 +73,5 @@ services:
     depends_on:
       - fastapi
 
-  # test-runner:
-  #   build: .
-  #   env_file: .env
-  #   container_name: test-chat
-  #   depends_on:
-  #     - redis
-  #   environment:
-  #     - REDIS_URL=redis://redis:6379
-  #     - FASTAPI_URI=http://fastapi:8000/
-  #     - PYTHONPATH=/app
-  #   volumes:
-  #     - .:/app
-  #   working_dir: /app
-  #   entrypoint: ["python", "scripts/test_chat.py"]
+volumes:
+  postgres_data:
