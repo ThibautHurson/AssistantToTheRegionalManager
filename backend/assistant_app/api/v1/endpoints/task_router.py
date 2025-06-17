@@ -25,6 +25,7 @@ class TaskUpdate(BaseModel):
 
 class TaskResponse(TaskBase):
     id: str
+    ticket_id: str
     status: str
     created_at: datetime
     updated_at: Optional[datetime]
