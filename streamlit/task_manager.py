@@ -1,4 +1,5 @@
 import streamlit as st
+st.set_page_config(page_title="Task Manager", page_icon="📝")
 import httpx
 from datetime import datetime
 import os
@@ -9,122 +10,270 @@ load_dotenv()
 
 # Configuration
 FASTAPI_URI = os.getenv("FASTAPI_URI", "http://localhost:8000")
-SESSION_ID = os.getenv("SESSION_ID", "hursonthibaut@gmail.com")
+SESSION_ID = os.getenv("SESSION_ID")
+
+PRIORITY_LABELS = {0: "🔴 High", 1: "🟠 Medium", 2: "🟡 Low", 3: "🔵 Lowest"}
+PRIORITY_ORDER = [0, 1, 2, 3]
+STATUS_ORDER = ["pending", "in_progress", "completed"]
+STATUS_LABELS = {
+    "pending": "Pending",
+    "in_progress": "In Progress",
+    "completed": "Completed"
+}
+
+# Helper for color-coded priorities
+def get_priority_label(priority):
+    return PRIORITY_LABELS.get(priority, f"{priority}")
+
+# Custom CSS for compact Jira-like cards
+st.markdown("""
+    <style>
+    .task-card {
+        background: #fff;
+        border-left: 6px solid #888;
+        border-radius: 6px;
+        padding: 0.5rem 0.7rem 0.5rem 0.7rem;
+        margin-bottom: 0.5rem;
+        box-shadow: 0 1px 2px rgba(0,0,0,0.04);
+        min-height: 60px;
+    }
+    .task-title {
+        font-size: 0.98rem;
+        font-weight: 600;
+        margin-bottom: 0.1rem;
+    }
+    .task-desc {
+        font-size: 0.8rem;
+        color: #555;
+        margin-bottom: 0.1rem;
+    }
+    .task-meta {
+        font-size: 0.75rem;
+        color: #888;
+        margin-bottom: 0.1rem;
+    }
+    .stButton>button {
+        padding: 0.15rem 0.6rem;
+        font-size: 0.75rem;
+        margin-right: 0.15rem;
+    }
+    </style>
+""", unsafe_allow_html=True)
 
 def show_task_manager():
-    st.title("Task Manager")
-    
-    # Add new task
-    with st.form("new_task"):
-        st.subheader("Add New Task")
-        title = st.text_input("Title")
-        description = st.text_area("Description")
-        due_date = st.date_input("Due Date")
-        priority = st.slider("Priority", 1, 5, 1)
-        
-        if st.form_submit_button("Add Task"):
-            if title:
+    st.title("📋 Task Manager")
+
+    with st.sidebar:
+        st.header("Filters")
+        priority_filter = st.selectbox(
+            "Priority",
+            options=["All"] + PRIORITY_ORDER,
+            format_func=lambda x: get_priority_label(x) if isinstance(x, int) else x,
+            index=0
+        )
+        if priority_filter == "All":
+            priority_filter = None
+
+    # --- New Task Modal ---
+    if 'show_new_task' not in st.session_state:
+        st.session_state['show_new_task'] = False
+    if 'new_task_status' not in st.session_state:
+        st.session_state['new_task_status'] = 'pending'
+
+    def open_new_task():
+        st.session_state['show_new_task'] = True
+        st.session_state['new_task_status'] = 'pending'
+
+    def close_new_task():
+        st.session_state['show_new_task'] = False
+
+    # --- Edit Task Modal ---
+    if 'edit_task_id' not in st.session_state:
+        st.session_state['edit_task_id'] = None
+    if 'edit_task_data' not in st.session_state:
+        st.session_state['edit_task_data'] = None
+
+    def open_edit_task(task):
+        st.session_state['edit_task_id'] = task['id']
+        st.session_state['edit_task_data'] = task
+
+    def close_edit_task():
+        st.session_state['edit_task_id'] = None
+        st.session_state['edit_task_data'] = None
+
+    # --- Fetch Tasks ---
+    params = {"session_id": SESSION_ID}
+    if priority_filter is not None:
+        params["priority"] = priority_filter
+    try:
+        response = httpx.get(
+            f"{FASTAPI_URI}/tasks",
+            params=params,
+            verify=False
+        )
+        response.raise_for_status()
+        tasks = response.json()
+    except Exception as e:
+        st.error(f"Error getting tasks: {str(e)}")
+        tasks = []
+
+    # --- Group tasks by status ---
+    grouped = {status: [] for status in STATUS_ORDER}
+    other_tasks = []
+    for task in tasks:
+        if task['status'] in grouped:
+            grouped[task['status']].append(task)
+        else:
+            other_tasks.append(task)
+
+    # Place a single + New Task button above the board
+    st.button(
+        "+ New Task",
+        key="new_task_btn_main",
+        on_click=open_new_task
+    )
+
+    # --- Kanban Board ---
+    cols = st.columns(3)
+    for idx, status in enumerate(STATUS_ORDER):
+        with cols[idx]:
+            st.markdown(f"#### {STATUS_LABELS[status]}")
+            for task in grouped[status]:
+                border_color = PRIORITY_LABELS.get(task['priority'], "#888").split()[0]  # Emoji as color
+                st.markdown(f'<div class="task-card" style="border-left-color:{border_color}">', unsafe_allow_html=True)
+                st.markdown(f'<div class="task-title">{task["title"]}</div>', unsafe_allow_html=True)
+                st.markdown(f'<div class="task-meta">{get_priority_label(task["priority"])} | Due: {task["due_date"][:10] if task["due_date"] else "-"}</div>', unsafe_allow_html=True)
+                if task['description']:
+                    st.markdown(f'<div class="task-desc">{task["description"]}</div>', unsafe_allow_html=True)
+                col1, col2 = st.columns([1,1])
+                with col1:
+                    if st.button("Edit", key=f"edit_{task['id']}"):
+                        open_edit_task(task)
+                with col2:
+                    if st.button("Delete", key=f"delete_{task['id']}"):
+                        try:
+                            response = httpx.delete(
+                                f"{FASTAPI_URI}/tasks/{task['id']}",
+                                params={"session_id": SESSION_ID},
+                                verify=False
+                            )
+                            response.raise_for_status()
+                            st.success("Task deleted!")
+                            st.rerun()
+                        except Exception as e:
+                            st.error(f"Error deleting task: {str(e)}")
+                st.markdown('</div>', unsafe_allow_html=True)
+
+    # --- New Task Modal (appears above board) ---
+    if st.session_state['show_new_task']:
+        st.markdown("---")
+        st.subheader(f"✏️ New Task ({STATUS_LABELS[st.session_state['new_task_status']]})")
+        with st.form("new_task_form", clear_on_submit=True):
+            title = st.text_input("Title")
+            description = st.text_area("Description")
+            due_date = st.date_input("Due Date", value=None)
+            priority = st.selectbox(
+                "Priority",
+                options=PRIORITY_ORDER,
+                format_func=get_priority_label,
+                index=0
+            )
+            submitted = st.form_submit_button("Create")
+            if submitted:
+                if title:
+                    try:
+                        response = httpx.post(
+                            f"{FASTAPI_URI}/tasks",
+                            json={
+                                "title": title,
+                                "description": description,
+                                "due_date": due_date.isoformat() if due_date else None,
+                                "priority": priority,
+                                "status": st.session_state['new_task_status']
+                            },
+                            params={"session_id": SESSION_ID},
+                            verify=False
+                        )
+                        response.raise_for_status()
+                        st.success("Task added successfully!")
+                        st.session_state['show_new_task'] = False
+                        st.rerun()
+                    except Exception as e:
+                        st.error(f"Error adding task: {str(e)}")
+                else:
+                    st.error("Title is required!")
+            st.form_submit_button("Cancel", on_click=close_new_task)
+        st.markdown("---")
+
+    # --- Edit Task Modal ---
+    if st.session_state['edit_task_id'] and st.session_state['edit_task_data']:
+        task = st.session_state['edit_task_data']
+        st.markdown("---")
+        st.subheader(f"✏️ Edit Task")
+        with st.form("edit_task_form", clear_on_submit=True):
+            new_title = st.text_input("Title", value=task['title'])
+            new_description = st.text_area("Description", value=task['description'] or "")
+            new_due_date = st.date_input("Due Date", value=datetime.fromisoformat(task['due_date']) if task['due_date'] else None)
+            new_priority = st.selectbox(
+                "Priority",
+                options=PRIORITY_ORDER,
+                format_func=get_priority_label,
+                index=task['priority'] if task['priority'] in PRIORITY_ORDER else 0
+            )
+            new_status = st.selectbox(
+                "Status",
+                options=STATUS_ORDER,
+                format_func=lambda x: STATUS_LABELS[x],
+                index=STATUS_ORDER.index(task['status']) if task['status'] in STATUS_ORDER else 0
+            )
+            submitted = st.form_submit_button("Save")
+            if submitted:
                 try:
-                    response = httpx.post(
-                        f"{FASTAPI_URI}/tasks",
+                    response = httpx.put(
+                        f"{FASTAPI_URI}/tasks/{task['id']}",
                         json={
-                            "title": title,
-                            "description": description,
-                            "due_date": due_date.isoformat() if due_date else None,
-                            "priority": priority
+                            "title": new_title,
+                            "description": new_description,
+                            "due_date": new_due_date.isoformat() if new_due_date else None,
+                            "priority": new_priority,
+                            "status": new_status
                         },
                         params={"session_id": SESSION_ID},
                         verify=False
                     )
                     response.raise_for_status()
-                    st.success("Task added successfully!")
+                    st.success("Task updated!")
+                    close_edit_task()
+                    st.rerun()
                 except Exception as e:
-                    st.error(f"Error adding task: {str(e)}")
-            else:
-                st.error("Title is required!")
+                    st.error(f"Error updating task: {str(e)}")
+            st.form_submit_button("Cancel", on_click=close_edit_task)
+        st.markdown("---")
 
-    # Get next task
-    st.subheader("Next Task")
-    try:
-        response = httpx.get(
-            f"{FASTAPI_URI}/tasks/next",
-            params={"session_id": SESSION_ID},
-            verify=False
-        )
-        response.raise_for_status()
-        next_task = response.json()
-        if next_task:
-            st.info(f"Next task: {next_task['title']} (Priority: {next_task['priority']})")
-        else:
-            st.info("No pending tasks!")
-    except Exception as e:
-        st.error(f"Error getting next task: {str(e)}")
-
-    # List all tasks
-    st.subheader("All Tasks")
-    try:
-        response = httpx.get(
-            f"{FASTAPI_URI}/tasks",
-            params={"session_id": SESSION_ID},
-            verify=False
-        )
-        response.raise_for_status()
-        tasks = response.json()
-        
-        for task in tasks:
-            with st.expander(f"{task['title']} (Priority: {task['priority']})"):
-                st.write(f"Description: {task['description']}")
-                if task['due_date']:
-                    st.write(f"Due: {task['due_date']}")
-                st.write(f"Status: {task['status']}")
-                
-                # Update task
-                with st.form(f"update_task_{task['id']}"):
-                    st.subheader("Update Task")
-                    new_title = st.text_input("Title", value=task['title'], key=f"title_{task['id']}")
-                    new_description = st.text_area("Description", value=task['description'], key=f"desc_{task['id']}")
-                    new_due_date = st.date_input("Due Date", value=datetime.fromisoformat(task['due_date']) if task['due_date'] else None, key=f"due_{task['id']}")
-                    new_priority = st.slider("Priority", 1, 5, value=task['priority'], key=f"priority_{task['id']}")
-                    new_status = st.selectbox(
-                        "Status",
-                        ["pending", "in_progress", "completed"],
-                        index=["pending", "in_progress", "completed"].index(task['status']),
-                        key=f"status_{task['id']}"
+    # --- Other Tasks (unexpected status) ---
+    if other_tasks:
+        st.markdown("### 🟣 Other Status Tasks (unexpected status value)")
+        for task in other_tasks:
+            st.markdown(f'<div class="task-card">', unsafe_allow_html=True)
+            st.markdown(f'<div class="task-title">{task["title"]}</div>', unsafe_allow_html=True)
+            st.markdown(f'<div class="task-meta">Priority: {task["priority"]} | Status: {task["status"]}</div>', unsafe_allow_html=True)
+            if task['description']:
+                st.markdown(f'<div class="task-desc">{task["description"]}</div>', unsafe_allow_html=True)
+            if task['due_date']:
+                st.markdown(f'<div class="task-meta"><b>Due:</b> {task["due_date"][:10]}</div>', unsafe_allow_html=True)
+            if st.button("Delete", key=f"delete_other_{task['id']}"):
+                try:
+                    response = httpx.delete(
+                        f"{FASTAPI_URI}/tasks/{task['id']}",
+                        params={"session_id": SESSION_ID},
+                        verify=False
                     )
-                    
-                    if st.form_submit_button("Update Task"):
-                        try:
-                            response = httpx.put(
-                                f"{FASTAPI_URI}/tasks/{task['id']}",
-                                json={
-                                    "title": new_title,
-                                    "description": new_description,
-                                    "due_date": new_due_date.isoformat() if new_due_date else None,
-                                    "priority": new_priority
-                                },
-                                params={"session_id": SESSION_ID},
-                                verify=False
-                            )
-                            response.raise_for_status()
-                            st.success("Task updated!")
-                        except Exception as e:
-                            st.error(f"Error updating task: {str(e)}")
-                
-                # Delete task
-                if st.button("Delete Task", key=f"delete_{task['id']}"):
-                    try:
-                        response = httpx.delete(
-                            f"{FASTAPI_URI}/tasks/{task['id']}",
-                            params={"session_id": SESSION_ID},
-                            verify=False
-                        )
-                        response.raise_for_status()
-                        st.success("Task deleted!")
-                        st.rerun()  # Refresh the page to show updated task list
-                    except Exception as e:
-                        st.error(f"Error deleting task: {str(e)}")
-    except Exception as e:
-        st.error(f"Error getting tasks: {str(e)}")
+                    response.raise_for_status()
+                    st.success("Task deleted!")
+                    st.rerun()
+                except Exception as e:
+                    st.error(f"Error deleting task: {str(e)}")
+            st.markdown('</div>', unsafe_allow_html=True)
 
 if __name__ == "__main__":
-    show_task_manager() 
+    show_task_manager()
