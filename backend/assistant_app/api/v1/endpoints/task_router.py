@@ -16,6 +16,13 @@ class TaskBase(BaseModel):
 class TaskCreate(TaskBase):
     pass
 
+class TaskUpdate(BaseModel):
+    title: Optional[str] = None
+    description: Optional[str] = None
+    due_date: Optional[datetime] = None
+    priority: Optional[int] = None
+    status: Optional[str] = None
+
 class TaskResponse(TaskBase):
     id: str
     status: str
@@ -41,9 +48,10 @@ async def create_task(
 @router.get("/tasks", response_model=List[TaskResponse])
 async def get_tasks(
     status: Optional[str] = None,
+    priority: Optional[int] = None,
     task_manager: TaskManager = Depends(get_task_manager)
 ):
-    return task_manager.get_tasks(status=status)
+    return task_manager.get_tasks(status=status, priority=priority)
 
 @router.get("/tasks/next", response_model=Optional[TaskResponse])
 async def get_next_task(
@@ -54,15 +62,12 @@ async def get_next_task(
 @router.put("/tasks/{task_id}", response_model=TaskResponse)
 async def update_task(
     task_id: str,
-    task: TaskCreate,
+    task: TaskUpdate,
     task_manager: TaskManager = Depends(get_task_manager)
 ):
     updated_task = task_manager.update_task(
         task_id=task_id,
-        title=task.title,
-        description=task.description,
-        due_date=task.due_date,
-        priority=task.priority
+        **task.model_dump(exclude_unset=True)
     )
     if not updated_task:
         raise HTTPException(status_code=404, detail="Task not found")
