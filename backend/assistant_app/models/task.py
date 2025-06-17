@@ -1,6 +1,6 @@
 from sqlalchemy import Column, String, Integer, DateTime, Text, func
 from sqlalchemy.sql import func
-from backend.assistant_app.api_integration.db import Base
+from backend.assistant_app.api_integration.db import Base, get_db
 import uuid
 
 class TicketCounter(Base):

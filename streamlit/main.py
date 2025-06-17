@@ -9,7 +9,11 @@ load_dotenv()
 FASTAPI_URI = os.getenv("FASTAPI_URI")
 SESSION_ID = os.getenv("SESSION_ID")
 
-st.set_page_config(page_title="Chatbot", page_icon="🤖")
+st.set_page_config(
+    page_title="Chatbot", 
+    page_icon="🤖", 
+    layout="wide",
+    initial_sidebar_state="expanded")
 
 st.title("📬 Gmail-Integrated Chatbot")
 
