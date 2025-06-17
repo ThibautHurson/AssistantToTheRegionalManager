@@ -63,6 +63,29 @@ st.markdown("""
         font-size: 0.75rem;
         margin-right: 0.15rem;
     }
+    .main .block-container {
+        padding-top: 2rem;
+        padding-bottom: 2rem;
+        max-width: 2400px;
+    }
+    /* Task card styling */
+    .task-card {
+        background: #fff;
+        border-left: 6px solid #888;
+        border-radius: 6px;
+        padding: 0.8rem 1rem;
+        margin-bottom: 0.8rem;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+        min-height: 70px;
+        transition: all 0.2s ease;
+    }
+    .task-card:hover {
+        box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+        transform: translateY(-1px);
+    }
+    /* Make columns wider */
+    [data-testid="column"] {
+        min-width: 400px !important;
     </style>
 """, unsafe_allow_html=True)
 
@@ -147,7 +170,7 @@ def show_task_manager():
     )
 
     # --- Kanban Board ---
-    cols = st.columns(3)
+    cols = st.columns([1, 1, 1], gap="large")  # Equal width columns
     for idx, status in enumerate(STATUS_ORDER):
         with cols[idx]:
             st.markdown(f"#### {STATUS_LABELS[status]}")
