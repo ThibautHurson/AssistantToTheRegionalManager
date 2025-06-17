@@ -109,7 +109,7 @@ tools_schema = [
                 "properties": {
                     "status": {
                         "type": "string",
-                        "description": "Optional status filter (pending, in_progress, completed)"
+                        "description": "Optional status filter (pending, in_progress, completed). Do not use this unless the user asks for it."
                     },
                     "priority": {
                         "type": "integer",
