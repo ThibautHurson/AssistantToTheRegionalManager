@@ -11,6 +11,7 @@ from backend.assistant_app.api_integration.db import get_db
 class Task:
     def __init__(self, **kwargs):
         self.id = kwargs.get('id')
+        self.ticket_id = kwargs.get('ticket_id')
         self.title = kwargs.get('title')
         self.description = kwargs.get('description')
         self.due_date = kwargs.get('due_date')
@@ -23,6 +24,7 @@ class Task:
     def to_dict(self):
         return {
             'id': self.id,
+            'ticket_id': self.ticket_id,
             'title': self.title,
             'description': self.description,
             'due_date': self.due_date.isoformat() if self.due_date else None,

@@ -1,11 +1,30 @@
-from sqlalchemy import Column, String, Integer, DateTime, Text
+from sqlalchemy import Column, String, Integer, DateTime, Text, func
 from sqlalchemy.sql import func
 from backend.assistant_app.api_integration.db import Base
+import uuid
+
+class TicketCounter(Base):
+    __tablename__ = "ticket_counter"
+    
+    id = Column(Integer, primary_key=True)
+    last_number = Column(Integer, default=0)
+
+def generate_ticket_id():
+    db = next(get_db())
+    counter = db.query(TicketCounter).first()
+    if not counter:
+        counter = TicketCounter(last_number=0)
+        db.add(counter)
+    
+    counter.last_number += 1
+    db.commit()
+    return f"ATTRM-{counter.last_number:06d}"  # Pad with zeros to 6 digits
 
 class Task(Base):
     __tablename__ = "tasks"
 
     id = Column(String, primary_key=True, index=True)
+    ticket_id = Column(String, unique=True, index=True, default=generate_ticket_id)
     title = Column(String, nullable=False)
     description = Column(Text)
     due_date = Column(DateTime(timezone=True))
