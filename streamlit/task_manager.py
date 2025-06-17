@@ -37,6 +37,12 @@ st.markdown("""
         box-shadow: 0 1px 2px rgba(0,0,0,0.04);
         min-height: 60px;
     }
+    .task-id {
+        font-size: 0.75rem;
+        color: #666;
+        font-family: monospace;
+        margin-bottom: 0.1rem;
+    }
     .task-title {
         font-size: 0.98rem;
         font-weight: 600;
@@ -148,6 +154,7 @@ def show_task_manager():
             for task in grouped[status]:
                 border_color = PRIORITY_LABELS.get(task['priority'], "#888").split()[0]  # Emoji as color
                 st.markdown(f'<div class="task-card" style="border-left-color:{border_color}">', unsafe_allow_html=True)
+                st.markdown(f'<div class="task-id">{task["ticket_id"]}</div>', unsafe_allow_html=True)
                 st.markdown(f'<div class="task-title">{task["title"]}</div>', unsafe_allow_html=True)
                 st.markdown(f'<div class="task-meta">{get_priority_label(task["priority"])} | Due: {task["due_date"][:10] if task["due_date"] else "-"}</div>', unsafe_allow_html=True)
                 if task['description']:
