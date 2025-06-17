@@ -119,6 +119,7 @@ def show_task_manager():
 
     # --- Group tasks by status ---
     grouped = {status: [] for status in STATUS_ORDER}
+
     other_tasks = []
     for task in tasks:
         if task['status'] in grouped:
@@ -126,6 +127,10 @@ def show_task_manager():
         else:
             other_tasks.append(task)
 
+    # Sort tasks within each status group
+    for status in STATUS_ORDER:
+        grouped[status].sort(key=lambda x: (x['priority'], x['due_date'] if x['due_date'] else '9999-12-31'))
+        
     # Place a single + New Task button above the board
     st.button(
         "+ New Task",
