@@ -30,6 +30,8 @@ redis_client = redis.Redis(
 # Google OAuth2 configuration
 CLIENT_SECRET_FILE = os.getenv("GOOGLE_CLIENT_SECRET_FILE", "google_setup/client_secret.json")
 REDIRECT_URI = os.getenv("GOOGLE_REDIRECT_URI", "http://localhost:8000/oauth2callback")
+GOOGLE_PROJECT_ID = os.getenv("GOOGLE_PROJECT_ID")
+GOOGLE_TOPIC = os.getenv("GOOGLE_TOPIC")
 
 SCOPES = [
     "openid",             # Required for ID token
@@ -70,6 +72,8 @@ def load_credentials(user_id: str) -> Optional[Credentials]:
         try:
             creds.refresh(Request())
             save_credentials(user_id, creds)
+            # Set up Gmail watch after refreshing credentials, passing the refreshed creds
+            setup_gmail_watch(user_id, creds)
         except Exception as e:
             print(f"Error refreshing token: {e}")
             return None
@@ -108,6 +112,7 @@ def get_authorization_url(session_id: str) -> Tuple[Optional[str], Optional[Flow
     existing = load_credentials(session_id)
     if existing and existing.valid:
         print("Valid credentials found")
+        
         return None, None
 
     # Load client configuration
@@ -135,6 +140,48 @@ def get_authorization_url(session_id: str) -> Tuple[Optional[str], Optional[Flow
 
     return auth_url, flow
 
+def setup_gmail_watch(email: str, creds: Optional[Credentials] = None) -> bool:
+    """Set up Gmail watch notifications for the user's inbox.
+    
+    Args:
+        email: The user's email address
+        creds: Optional credentials to use. If not provided, will load them.
+        
+    Returns:
+        bool: True if watch was set up successfully, False otherwise
+    """
+    try:
+        print(f"Setting up Gmail watch for {email}")
+        if not creds:
+            creds = load_credentials(email)
+        if not creds:
+            print(f"No valid credentials found for {email}")
+            return False
+            
+        service = build("gmail", "v1", credentials=creds)
+        
+        # Set up watch
+        watch_response = service.users().watch(
+            userId='me',
+            body={
+                'labelIds': ['INBOX'],
+                'topicName': f'projects/{GOOGLE_PROJECT_ID}/topics/{GOOGLE_TOPIC}'
+            }
+        ).execute()
+        
+        print(f"Watch response: {watch_response}")
+        
+        # Store history ID for future reference
+        if 'historyId' in watch_response:
+            save_to_redis(email, "historyId", watch_response['historyId'])
+            print(f"Stored history ID: {watch_response['historyId']}")
+            
+        return True
+    except Exception as e:
+        print(f"Error setting up Gmail watch: {e}")
+        import traceback
+        print(f"Traceback: {traceback.format_exc()}")
+        return False
 
 def exchange_code_for_token(code: str, state: str) -> Optional[Credentials]:
     """Exchange authorization code for access token."""
@@ -176,7 +223,6 @@ def exchange_code_for_token(code: str, state: str) -> Optional[Credentials]:
             print(f"Found email in ID token: {email}")
             # Save credentials using email as user_id
             save_credentials(email, creds)
-
             return creds
         except Exception as e:
             print(f"Error decoding ID token: {e}")
@@ -187,7 +233,6 @@ def exchange_code_for_token(code: str, state: str) -> Optional[Credentials]:
         import traceback
         print(f"Traceback: {traceback.format_exc()}")
         return None
-
 
 def fetch_user_email(creds):
     headers = {
