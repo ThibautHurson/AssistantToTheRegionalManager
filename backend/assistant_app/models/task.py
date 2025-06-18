@@ -32,4 +32,5 @@ class Task(Base):
     status = Column(String, default="pending")
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
-    user_id = Column(String, nullable=False, index=True) 
+    user_id = Column(String, nullable=False, index=True)
+    gmail_message_id = Column(String, unique=True, nullable=True, index=True) 
