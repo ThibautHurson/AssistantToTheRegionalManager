@@ -9,6 +9,7 @@ import redis
 from dotenv import load_dotenv
 import httpx
 from backend.assistant_app.utils.redis_saver import save_to_redis
+from datetime import datetime
 
 load_dotenv()
 
@@ -66,6 +67,9 @@ def load_credentials(user_id: str) -> Optional[Credentials]:
 
     creds_dict = json.loads(creds_json)
     creds = Credentials.from_authorized_user_info(creds_dict, SCOPES)
+    # Restore expiry if present
+    if 'expiry' in creds_dict and creds_dict['expiry']:
+        creds.expiry = datetime.fromisoformat(creds_dict['expiry'])
 
     if creds and creds.expired and creds.refresh_token:
         print("Credentials expired. Need to refresh")
@@ -88,7 +92,8 @@ def save_credentials(user_id: str, creds: Credentials):
         'token_uri': creds.token_uri,
         'client_id': creds.client_id,
         'client_secret': creds.client_secret,
-        'scopes': creds.scopes
+        'scopes': creds.scopes,
+        'expiry': creds.expiry.isoformat() if creds.expiry else None
     }
     # Save to Redis
     redis_client.set(f"google_creds:{user_id}", json.dumps(creds_dict))
@@ -170,12 +175,6 @@ def setup_gmail_watch(email: str, creds: Optional[Credentials] = None) -> bool:
         ).execute()
         
         print(f"Watch response: {watch_response}")
-        
-        # Store history ID for future reference
-        if 'historyId' in watch_response:
-            save_to_redis(email, "historyId", watch_response['historyId'])
-            print(f"Stored history ID: {watch_response['historyId']}")
-            
         return True
     except Exception as e:
         print(f"Error setting up Gmail watch: {e}")

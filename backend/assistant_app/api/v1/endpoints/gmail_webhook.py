@@ -14,23 +14,20 @@ from backend.assistant_app.utils.redis_saver import load_from_redis, save_to_red
 
 from backend.assistant_app.services.task_detector import TaskDetector
 from backend.assistant_app.models.task_manager import TaskManager
+from backend.assistant_app.models.task import Task as TaskModel
+from backend.assistant_app.api_integration.db import get_db
 
 load_dotenv()
 router = APIRouter()
 
 HISTORY_KEY = "historyId"
-LAST_PROCESSED_KEY = "lastProcessed"
-PROCESSING_WINDOW_KEY = "processingWindow"  # Track the time window we're processing
+
 task_detector = TaskDetector()
+
 MAX_CONCURRENT_TASKS = 3
 RATE_LIMIT_DELAY = 1
-MIN_PROCESSING_INTERVAL = 60  # Minimum seconds between processing the same time window
-MAX_NOTIFICATION_AGE = 300  # Skip notifications older than 5 minutes
+MAX_NOTIFICATION_AGE = 60 * 60 * 10  # Skip notifications older than 10 hours
 
-def get_processing_window():
-    """Get the current processing window (rounded to nearest minute)"""
-    now = datetime.now()
-    return now.replace(second=0, microsecond=0).isoformat()
 
 def is_notification_too_old(publish_time: str) -> bool:
     """Check if the notification is too old to process"""
@@ -56,7 +53,7 @@ async def gmail_webhook(request: Request):
         decoded = json.loads(base64.b64decode(message_data).decode("utf-8"))
         email_address = decoded["emailAddress"]
         print("New email notification for:", email_address)
-        history_id = decoded["historyId"]
+        history_id = str(decoded["historyId"])
         publish_time = message.get("publishTime") or message.get("publish_time")
         
         # Skip old notifications
@@ -68,20 +65,6 @@ async def gmail_webhook(request: Request):
         print(f"Error decoding message data: {e}")
         return JSONResponse({"error": "Invalid message data"}, status_code=400)
 
-    # Get current processing window
-    current_window = get_processing_window()
-    
-    # Check if we're already processing this time window
-    last_window = load_from_redis(email_address, PROCESSING_WINDOW_KEY)
-    if last_window:
-        last_window_time = datetime.fromisoformat(last_window)
-        if datetime.fromisoformat(current_window) - last_window_time < timedelta(seconds=MIN_PROCESSING_INTERVAL):
-            print(f"Skipping notification - already processing window {last_window}")
-            return {"status": "skipped", "reason": "processing_window_active"}
-
-    # Update processing window
-    save_to_redis(email_address, PROCESSING_WINDOW_KEY, current_window)
-
     """
     Because Gmail Pub/Sub push notifications are eventual and incremental, and the startHistoryId 
     you get from the webhook often does not contain the new message yet, we fetch the previous historyId
@@ -91,10 +74,15 @@ async def gmail_webhook(request: Request):
     start_history_id = load_from_redis(email_address, HISTORY_KEY)
     print(f"Loaded history ID: {start_history_id}")
     
-    # Update historyId in redis
-    save_to_redis(email_address, HISTORY_KEY, history_id)
     if not start_history_id:
         start_history_id = str(int(history_id) - 10)  # fallback for first-time
+
+    elif start_history_id and (history_id < start_history_id):
+        print(f"Skipping notification - history ID {history_id} is older than {start_history_id}")
+        return {"status": "skipped", "reason": "history_id_too_old"}
+
+    # Update historyId in redis
+    save_to_redis(email_address, HISTORY_KEY, history_id)
 
     print(f"Loading credentials for email: {email_address}")
     creds = load_credentials(email_address)
@@ -127,12 +115,13 @@ async def gmail_webhook(request: Request):
     
     if not messages:
         print("No new messages to process")
-        return {"status": "ok", "messages_fetched": 0, "tasks_created": []}
+        return JSONResponse({"status": "ok", "messages_fetched": 0, "tasks_created": []}, status_code=200)
     
     results = []
     tasks_created = []
     task_manager = TaskManager(email_address)  # Using email as session_id
 
+    newest_history_id = history_id
     # Process messages in batches to respect rate limits
     for i in range(0, len(messages), MAX_CONCURRENT_TASKS):
         batch = messages[i:i + MAX_CONCURRENT_TASKS]
@@ -140,8 +129,19 @@ async def gmail_webhook(request: Request):
         
         for msg_id in batch:
             try:
+                db = next(get_db())
+                # Deduplication check
+                existing_task = db.query(TaskModel).filter_by(gmail_message_id=msg_id).first()
+                if existing_task:
+                    print(f"Task for Gmail message {msg_id} already exists, skipping.")
+                    continue
+                    
                 # Properly await the get_gmail call
-                msg_data = await get_gmail(service, msg_id)
+                msg_data, msg_history_id, labels = await get_gmail(service, msg_id)
+                if "INBOX" not in labels:
+                    print(f"Skipping message {msg_id} because it is not in INBOX (labels: {labels})")
+                    continue
+                newest_history_id = max(newest_history_id, msg_history_id)
                 if not msg_data:
                     print(f"No content received for message {msg_id}")
                     continue
@@ -171,7 +171,8 @@ async def gmail_webhook(request: Request):
                                 title=task_details.get("title", "Task from email"),
                                 description=task_details.get("description", msg_data[:200] + "..."),
                                 due_date=task_details.get("due_date"),
-                                priority=task_details.get("priority", 1)
+                                priority=task_details.get("priority", 1),
+                                msg_id=msg_id
                             )
                             tasks_created.append(task.ticket_id)
                             print(f"Created task with ID: {task.ticket_id}")
@@ -184,11 +185,15 @@ async def gmail_webhook(request: Request):
         if i + MAX_CONCURRENT_TASKS < len(messages):
             await asyncio.sleep(RATE_LIMIT_DELAY)
 
+    print(f"Newest history ID: {newest_history_id}")
+    # Update historyId in redis with the newest historyId from the messages
+    save_to_redis(email_address, HISTORY_KEY, newest_history_id)
+
     print(f"Fetched {len(results)} messages.")
     print(f"Created {len(tasks_created)} tasks: {tasks_created}")
 
-    return {
+    return JSONResponse({
         "status": "ok", 
         "messages_fetched": len(results),
         "tasks_created": tasks_created
-    }
+    }, status_code=200)

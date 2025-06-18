@@ -20,6 +20,7 @@ class Task:
         self.created_at = kwargs.get('created_at')
         self.updated_at = kwargs.get('updated_at')
         self.user_id = kwargs.get('user_id')
+        self.gmail_message_id = kwargs.get('gmail_message_id')
 
     def to_dict(self):
         return {
@@ -32,7 +33,8 @@ class Task:
             'status': self.status,
             'created_at': self.created_at.isoformat() if self.created_at else None,
             'updated_at': self.updated_at.isoformat() if self.updated_at else None,
-            'user_id': self.user_id
+            'user_id': self.user_id,
+            'gmail_message_id': self.gmail_message_id
         }
 
 class TaskManager:
@@ -40,10 +42,11 @@ class TaskManager:
         self.user_id = session_id  # Using session_id as user_id
 
     def add_task(self, title: str, description: Optional[str] = None, 
-                 due_date: Optional[datetime] = None, priority: int = 1) -> Task:
+                 due_date: Optional[datetime] = None, priority: int = 1, msg_id: str = None) -> Task:
         db = next(get_db())
         task = TaskModel(
             id=str(uuid.uuid4()),
+            gmail_message_id=msg_id,
             title=title,
             description=description,
             due_date=due_date,
