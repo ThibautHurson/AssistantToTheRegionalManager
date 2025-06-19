@@ -10,7 +10,6 @@ from dotenv import load_dotenv
 import httpx
 from backend.assistant_app.utils.redis_saver import save_to_redis
 from datetime import datetime
-
 load_dotenv()
 
 # Redis configuration
@@ -18,6 +17,8 @@ REDIS_HOST = os.getenv("REDIS_HOST", "redis-aof")
 REDIS_PORT = int(os.getenv("REDIS_PORT", 6379))
 REDIS_DB = int(os.getenv("REDIS_DB", 0))
 REDIS_PASSWORD = os.getenv("REDIS_PASSWORD", "")
+
+os.environ['OAUTHLIB_RELAX_TOKEN_SCOPE'] = 'True'
 
 # Initialize Redis client
 redis_client = redis.Redis(
@@ -35,9 +36,10 @@ GOOGLE_PROJECT_ID = os.getenv("GOOGLE_PROJECT_ID")
 GOOGLE_TOPIC = os.getenv("GOOGLE_TOPIC")
 
 SCOPES = [
-    "openid",             # Required for ID token
-    "https://www.googleapis.com/auth/userinfo.email",  
-    "https://www.googleapis.com/auth/gmail.readonly"
+    "openid",
+    "https://www.googleapis.com/auth/userinfo.email",
+    "https://www.googleapis.com/auth/gmail.modify",
+    "https://www.googleapis.com/auth/gmail.send"
 ]
 
 def load_client_config():
@@ -199,7 +201,7 @@ def exchange_code_for_token(code: str, state: str) -> Optional[Credentials]:
             redirect_uri=REDIRECT_URI  # Use the environment variable
         )
 
-        # Exchange code for credentials
+
         flow.fetch_token(code=code)
         creds = flow.credentials
 

@@ -17,10 +17,6 @@ GOOGLE_PROJECT_ID = os.getenv("GOOGLE_PROJECT_ID")
 GOOGLE_TOPIC = os.getenv("GOOGLE_TOPIC")
 SESSION_ID = os.getenv("SESSION_ID")
 
-SCOPES = [
-    "openid",             # Required for ID token
-    "https://www.googleapis.com/auth/userinfo.email",  
-    "https://www.googleapis.com/auth/gmail.readonly"]
 
 app = FastAPI()
 

@@ -1,12 +1,10 @@
-from dotenv import load_dotenv
-import os
 import json
 import base64
 from backend.assistant_app.utils.tool_registry import register_tool
 from backend.assistant_app.utils.handle_errors import retry_on_rate_limit_async
+from email.mime.text import MIMEText
+from googleapiclient.errors import HttpError
 
-load_dotenv()
-SESSION_ID = os.getenv("SESSION_ID")
 MAX_RESULTS = 10
 
 @retry_on_rate_limit_async(
@@ -46,17 +44,91 @@ async def _search_gmail(service, query: str):
     for msg in messages[:MAX_RESULTS]:
         content, _, _ = await get_gmail(service, msg['id'])
         if content:
-            messages_payload.append(content)
+            messages_payload.append({"content": content, "message_id": msg['id']})
     return json.dumps(messages_payload)
 
 # Exposed tool to the agent (LLM sees only this interface)
 @register_tool
-async def search_gmail(query: str):
+async def search_gmail(query: str, session_id: str):
     """Search Gmail messages with retry logic."""
     from backend.assistant_app.api_integration.google_token_store import load_credentials
     from googleapiclient.discovery import build
 
-    creds = load_credentials(SESSION_ID)
+    creds = load_credentials(session_id)
     service = build("gmail", "v1", credentials=creds)
 
     return await _search_gmail(service, query)
+
+@register_tool
+async def send_gmail(to: str, subject: str, body: str, session_id: str):
+    """
+    Send an email using Gmail.
+    Args:
+        to: Recipient email address
+        subject: Email subject
+        body: Email body (plain text)
+    """
+    from backend.assistant_app.api_integration.google_token_store import load_credentials
+    from googleapiclient.discovery import build
+
+    creds = load_credentials(session_id)
+    service = build("gmail", "v1", credentials=creds)
+
+    message = MIMEText(body)
+    message['to'] = to
+    message['subject'] = subject
+    raw = base64.urlsafe_b64encode(message.as_bytes()).decode()
+
+    message_body = {'raw': raw}
+    sent_message = service.users().messages().send(userId="me", body=message_body).execute()
+    return f"Email sent to {to} with subject '{subject}'. Message ID: {sent_message.get('id')}"
+
+@register_tool
+async def reply_to_gmail(message_id: str, body: str, session_id: str):
+    """
+    Reply to an email using Gmail.
+    Args:
+        message_id: The ID of the message to reply to
+        body: The reply body (plain text)
+    """
+    if not message_id or len(message_id) < 10:  # Gmail message IDs are long hex strings
+        return f"Invalid message_id: '{message_id}'. Please provide a valid Gmail message ID."
+    
+    from backend.assistant_app.api_integration.google_token_store import load_credentials
+    from googleapiclient.discovery import build
+
+    creds = load_credentials(session_id)
+    service = build("gmail", "v1", credentials=creds)
+
+    try:
+        # Get the original message to extract headers
+        original = service.users().messages().get(
+            userId='me',
+            id=message_id,
+            format='metadata',
+            metadataHeaders=['Subject', 'From', 'To', 'Message-ID']
+        ).execute()
+    except HttpError as e:
+        if e.resp.status == 404:
+            return f"Could not find the email with ID {message_id}. It may have been deleted or is not accessible."
+        raise
+
+    headers = {h['name']: h['value'] for h in original['payload']['headers']}
+    subject = headers.get('Subject', '')
+    to = headers.get('From', '')
+
+    # Prepare reply headers
+    reply = MIMEText(body)
+    reply['to'] = to
+    reply['subject'] = "Re: " + subject if not subject.lower().startswith("re:") else subject
+    if 'Message-ID' in headers:
+        reply['In-Reply-To'] = headers['Message-ID']
+        reply['References'] = headers['Message-ID']
+
+    raw = base64.urlsafe_b64encode(reply.as_bytes()).decode()
+    message_body = {
+        'raw': raw,
+        'threadId': original.get('threadId')
+    }
+    sent_message = service.users().messages().send(userId="me", body=message_body).execute()
+    return f"Reply sent to {to}. Message ID: {sent_message.get('id')}"

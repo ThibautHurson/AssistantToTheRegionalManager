@@ -131,5 +131,51 @@ tools_schema = [
                 "required": []
             }
         }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "send_gmail",
+            "description": "Send an email using Gmail. ALWAYS validate with the user that the recipient, subject, and body of the email are correct before sending it.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "to": {
+                        "type": "string",
+                        "description": "The email address of the recipient"
+                    },
+                    "subject": {
+                        "type": "string",
+                        "description": "The subject of the email"
+                    },
+                    "body": {
+                        "type": "string",
+                        "description": "The body of the email"
+                    }
+                },
+                "required": ["to", "subject", "body"]
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "reply_to_gmail",
+            "description": "Reply to an email using Gmail. ALWAYS validate with the user that the recipient, subject, and body of the email are correct before sending it.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "message_id": {
+                        "type": "string",
+                        "description": "The ID of the message to reply to"
+                    },
+                    "body": {
+                        "type": "string",
+                        "description": "The body of the reply"
+                    }
+                },
+                "required": ["message_id", "body"]
+            }
+        }
     }
 ]
