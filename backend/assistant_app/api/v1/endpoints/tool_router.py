@@ -3,6 +3,7 @@ from pydantic import BaseModel
 from typing import Dict, Any
 import backend.assistant_app.agents.tools
 from backend.assistant_app.utils.tool_registry import tool_registry
+import asyncio
 
 class ToolCallRequest(BaseModel):
     tool_name: str
@@ -14,7 +15,11 @@ router = APIRouter()
 async def run_tool_endpoint(request: ToolCallRequest):
     try:
         tool = tool_registry.get(request.tool_name)
-        result = tool(**request.args)
+        #Make async if coroutine
+        if asyncio.iscoroutinefunction(tool):
+            result = await tool(**request.args)
+        else:
+            result = tool(**request.args)
         return result
     except Exception as e:
         import traceback

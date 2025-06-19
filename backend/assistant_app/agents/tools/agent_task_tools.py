@@ -2,7 +2,7 @@ from typing import List, Optional
 from datetime import datetime
 from pydantic import BaseModel
 
-from backend.assistant_app.models.task_manager import TaskManager, get_task_manager
+from backend.assistant_app.models.task_manager import get_task_manager
 from backend.assistant_app.utils.tool_registry import register_tool
 
 class TaskInput(BaseModel):

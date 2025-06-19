@@ -75,6 +75,7 @@ class MistralChatAgent(BaseAgent):
                 tool_outputs = []
                 for tool_call in message.tool_calls:
                     print(f"Tool chosen by Mistral: {tool_call.function.name}")
+                    print(f"Tool arguments: {tool_call.function.arguments}")
                     tool_name = tool_call.function.name
                     tool_args = json.loads(tool_call.function.arguments)
                     result = await self.call_tool_via_router(tool_name, tool_args)
