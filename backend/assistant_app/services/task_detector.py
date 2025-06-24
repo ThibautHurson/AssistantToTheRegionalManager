@@ -28,7 +28,7 @@ class TaskDetector:
         prompt = f"""Analyze this email content and determine if it contains a relevant task that needs to be tracked.
         A relevant task should be:
         1. Actionable (has a clear action to take)
-        2. Important (E.g Taxes, Bills, Recruitment, etc.). Do NOT include ads, newsletters, etc.
+        2. Important (E.g Taxes, Bills, Recruitment, Flight, Train, etc.). Do NOT include ads, newsletters, etc.
         
         Email content:
         {content}
