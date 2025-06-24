@@ -30,6 +30,8 @@ class TaskResponse(TaskBase):
     created_at: datetime
     updated_at: Optional[datetime]
     user_id: str
+    gmail_message_id: Optional[str] = None
+    gmail_link: Optional[str] = None
 
     class Config:
         from_attributes = True

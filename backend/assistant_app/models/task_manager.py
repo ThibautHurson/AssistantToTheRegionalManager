@@ -22,6 +22,12 @@ class Task:
         self.user_id = kwargs.get('user_id')
         self.gmail_message_id = kwargs.get('gmail_message_id')
 
+    @property
+    def gmail_link(self):
+        if self.gmail_message_id:
+            return f"https://mail.google.com/mail/u/0/#inbox/{self.gmail_message_id}"
+        return None
+
     def to_dict(self):
         return {
             'id': self.id,
@@ -34,7 +40,8 @@ class Task:
             'created_at': self.created_at.isoformat() if self.created_at else None,
             'updated_at': self.updated_at.isoformat() if self.updated_at else None,
             'user_id': self.user_id,
-            'gmail_message_id': self.gmail_message_id
+            'gmail_message_id': self.gmail_message_id,
+            'gmail_link': self.gmail_link
         }
 
 class TaskManager:

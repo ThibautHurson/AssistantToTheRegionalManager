@@ -44,7 +44,11 @@ async def _search_gmail(service, query: str):
     for msg in messages[:MAX_RESULTS]:
         content, _, _ = await get_gmail(service, msg['id'])
         if content:
-            messages_payload.append({"content": content, "message_id": msg['id']})
+            messages_payload.append({
+                "content": content,
+                "message_id": msg['id'],
+                "gmail_link": f"https://mail.google.com/mail/u/0/#inbox/{msg['id']}"
+            })
     return json.dumps(messages_payload)
 
 # Exposed tool to the agent (LLM sees only this interface)
@@ -81,7 +85,7 @@ async def send_gmail(to: str, subject: str, body: str, session_id: str):
 
     message_body = {'raw': raw}
     sent_message = service.users().messages().send(userId="me", body=message_body).execute()
-    return f"Email sent to {to} with subject '{subject}'. Message ID: {sent_message.get('id')}"
+    return f"Email sent to {to} with subject '{subject}'. View: https://mail.google.com/mail/u/0/#inbox/{sent_message.get('id')}"
 
 @register_tool
 async def reply_to_gmail(message_id: str, body: str, session_id: str):
@@ -131,4 +135,4 @@ async def reply_to_gmail(message_id: str, body: str, session_id: str):
         'threadId': original.get('threadId')
     }
     sent_message = service.users().messages().send(userId="me", body=message_body).execute()
-    return f"Reply sent to {to}. Message ID: {sent_message.get('id')}"
+    return f"Reply sent to {to}. View: https://mail.google.com/mail/u/0/#inbox/{sent_message.get('id')}"
