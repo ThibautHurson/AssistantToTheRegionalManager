@@ -15,6 +15,48 @@ st.set_page_config(
     layout="wide",
     initial_sidebar_state="expanded")
 
+# Custom CSS for chat bubbles and layout
+st.markdown("""
+    <style>
+    .chat-container {
+        display: flex;
+        flex-direction: column;
+        justify-content: flex-end;
+        min-height: 100px;
+        max-height: 60vh;
+        overflow-y: auto;
+        width: 100%;
+    }
+    .chat-bubble {
+        padding: 10px 15px;
+        border-radius: 15px;
+        margin-bottom: 10px;
+        max-width: 80%;
+        clear: both;
+        word-break: break-word;
+    }
+    .user-bubble {
+        background-color: #DCF8C6;
+        align-self: flex-end;
+        float: right;
+    }
+    .bot-bubble {
+        background-color: #F1F0F0;
+        align-self: flex-start;
+        float: left;
+    }
+    .stTextInput, textarea {
+        border-radius: 15px !important;
+        padding: 10px !important;
+        font-size: 1rem !important;
+        min-height: 40px !important;
+        max-height: 200px !important;
+        resize: vertical !important;
+        width: 80%;
+    }
+    </style>
+""", unsafe_allow_html=True)
+
 st.title("📬 Gmail-Integrated Chatbot")
 
 # Session state
@@ -49,11 +91,36 @@ def check_auth():
 
 # 2. Display chat UI
 def show_chat():
-    user_input = st.text_input("You:", key="user_input")
+    # Chat container for messages
+    with st.container():
+        st.markdown('<div class="chat-container">', unsafe_allow_html=True)
+        
+        # Display chat messages in normal order (oldest at top, newest at bottom)
+        for sender, msg in st.session_state.chat_history:
+            if sender == "You":
+                st.markdown(f'<div class="chat-bubble user-bubble"><b>You:</b> {msg}</div>', unsafe_allow_html=True)
+            else:
+                st.markdown(f'**Bot:** {msg}', unsafe_allow_html=False)
+                
+        st.markdown('</div>', unsafe_allow_html=True)
 
-    if user_input:
+    # Chat input at the bottom
+    with st.form("chat_form", clear_on_submit=True):
+        user_input = st.text_area(
+            "You:",
+            key="user_input",
+            label_visibility="collapsed",
+            placeholder="Ask me anything...",
+            height=100,
+        )
+        send_clicked = st.form_submit_button("Send")
+    print(send_clicked, user_input)
+    if send_clicked and user_input:
         try:
             print("Going to call /chat endpoint")
+            # Append user message first for immediate feedback
+            st.session_state.chat_history.append(("You", user_input))
+
             res = httpx.post(
                 f"{FASTAPI_URI}/chat",
                 json={"session_id": SESSION_ID, "input": user_input},
@@ -62,13 +129,12 @@ def show_chat():
             res.raise_for_status()
             bot_reply = res.json()["response"]
 
-            st.session_state.chat_history.append(("You", user_input))
             st.session_state.chat_history.append(("Bot", bot_reply))
+            st.rerun() # Rerun to show the bot's reply
         except Exception as e:
             st.error(f"Error: {e}")
-
-    for sender, msg in st.session_state.chat_history:
-        st.markdown(f"**{sender}:** {msg}")
+            # Optional: remove the user's message if the call failed
+            # st.session_state.chat_history.pop()
 
 # Entry point
 if not st.session_state.authenticated:
