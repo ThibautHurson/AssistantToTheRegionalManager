@@ -3,11 +3,17 @@ import os
 import httpx
 from dotenv import load_dotenv
 from task_manager import show_task_manager
+import redis
+from backend.assistant_app.utils.redis_saver import save_to_redis, load_from_redis
+import json
 
 load_dotenv()
 
 FASTAPI_URI = os.getenv("FASTAPI_URI")
 SESSION_ID = os.getenv("SESSION_ID")
+REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379")
+
+redis_client = redis.Redis.from_url(REDIS_URL, decode_responses=True)
 
 st.set_page_config(
     page_title="Chatbot", 
@@ -64,7 +70,11 @@ if "authenticated" not in st.session_state:
     st.session_state.authenticated = False
 
 if "chat_history" not in st.session_state:
-    st.session_state.chat_history = []
+    history_json = load_from_redis(SESSION_ID, "chat_history")
+    if history_json:
+        st.session_state.chat_history = json.loads(history_json)
+    else:
+        st.session_state.chat_history = []
 
 def check_auth():
     """Check if user is authenticated with Google"""
@@ -149,3 +159,6 @@ if st.session_state.authenticated:
     
     with tab2:
         show_task_manager()
+
+    # Save chat history after every message
+    save_to_redis(SESSION_ID, "chat_history", json.dumps(st.session_state.chat_history))
