@@ -125,8 +125,10 @@ async def gmail_webhook(request: Request):
     # Process messages in batches to respect rate limits
     for i in range(0, len(messages), MAX_CONCURRENT_TASKS):
         batch = messages[i:i + MAX_CONCURRENT_TASKS]
-        tasks = []
         
+        # A queue to hold message data and its corresponding task detection coroutine
+        processing_queue = []
+
         for msg_id in batch:
             try:
                 db = next(get_db())
@@ -145,39 +147,49 @@ async def gmail_webhook(request: Request):
                 if not msg_data:
                     print(f"No content received for message {msg_id}")
                     continue
-                    
-                results.append(msg_data)
-                tasks.append(task_detector.process_email(
-                    email_content=msg_data,
-                    email_subject=None
-                ))
+                
+                # Add message data and the task detection coroutine to the queue
+                processing_queue.append({
+                    "msg_id": msg_id,
+                    "msg_data": msg_data,
+                    "task_coro": task_detector.process_email(
+                        email_content=msg_data,
+                        email_subject=None
+                    )
+                })
+                results.append(msg_data) # Keep for original counting logic
+
             except Exception as e:
                 print(f"Error fetching message {msg_id}: {e}")
                 continue
 
-        # Process batch of tasks
-        if tasks:
+        # Process batch of tasks if any messages are in the queue
+        if processing_queue:
+            task_coroutines = [item['task_coro'] for item in processing_queue]
             try:
-                task_results = await asyncio.gather(*tasks, return_exceptions=True)
-                for task_details in task_results:
+                task_results = await asyncio.gather(*task_coroutines, return_exceptions=True)
+                
+                for i, item in enumerate(processing_queue):
+                    task_details = task_results[i]
                     if isinstance(task_details, Exception):
-                        print(f"Error in task detection: {task_details}")
+                        print(f"Error in task detection for message {item['msg_id']}: {task_details}")
                         continue
                         
                     if task_details:
                         print(f"Task detected in email: {task_details.get('title', 'Untitled Task')}")
                         try:
+                            # Use the correct msg_id and msg_data from the item in the queue
                             task = task_manager.add_task(
                                 title=task_details.get("title", "Task from email"),
-                                description=task_details.get("description", msg_data[:200] + "..."),
+                                description=task_details.get("description", item['msg_data'][:200] + "..."),
                                 due_date=task_details.get("due_date"),
                                 priority=task_details.get("priority", 1),
-                                msg_id=msg_id
+                                msg_id=item['msg_id']
                             )
                             tasks_created.append(task.ticket_id)
                             print(f"Created task with ID: {task.ticket_id}")
                         except Exception as e:
-                            print(f"Error creating task: {e}")
+                            print(f"Error creating task for message {item['msg_id']}: {e}")
             except Exception as e:
                 print(f"Error processing batch: {e}")
 

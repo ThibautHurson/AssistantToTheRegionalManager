@@ -179,6 +179,9 @@ def show_task_manager():
                 st.markdown(f'<div class="task-card" style="border-left-color:{border_color}">', unsafe_allow_html=True)
                 st.markdown(f'<div class="task-id">{task["ticket_id"]}</div>', unsafe_allow_html=True)
                 st.markdown(f'<div class="task-title">{task["title"]}</div>', unsafe_allow_html=True)
+                # Show Gmail link if present
+                if task.get("gmail_link"):
+                    st.markdown(f'<div class="task-meta"><a href="{task["gmail_link"]}" target="_blank">📧 View Email</a></div>', unsafe_allow_html=True)
                 st.markdown(f'<div class="task-meta">{get_priority_label(task["priority"])} | Due: {task["due_date"][:10] if task["due_date"] else "-"}</div>', unsafe_allow_html=True)
                 if task['description']:
                     st.markdown(f'<div class="task-desc">{task["description"]}</div>', unsafe_allow_html=True)
