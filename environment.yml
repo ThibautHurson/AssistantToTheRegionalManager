@@ -24,3 +24,5 @@ dependencies:
   - pip:
       - mistralai
       - uvicorn[standard]
+      - sentence-transformers
+      - faiss-cpu
