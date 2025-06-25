@@ -1,6 +1,5 @@
 import json
 import base64
-from backend.assistant_app.utils.tool_registry import register_tool
 from backend.assistant_app.utils.handle_errors import retry_on_rate_limit_async
 from email.mime.text import MIMEText
 from googleapiclient.errors import HttpError
@@ -51,8 +50,7 @@ async def _search_gmail(service, query: str):
             })
     return json.dumps(messages_payload)
 
-# Exposed tool to the agent (LLM sees only this interface)
-@register_tool
+
 async def search_gmail(query: str, session_id: str):
     """Search Gmail messages with retry logic."""
     from backend.assistant_app.api_integration.google_token_store import load_credentials
@@ -63,7 +61,7 @@ async def search_gmail(query: str, session_id: str):
 
     return await _search_gmail(service, query)
 
-@register_tool
+
 async def send_gmail(to: str, subject: str, body: str, session_id: str):
     """
     Send an email using Gmail.
@@ -87,7 +85,7 @@ async def send_gmail(to: str, subject: str, body: str, session_id: str):
     sent_message = service.users().messages().send(userId="me", body=message_body).execute()
     return f"Email sent to {to} with subject '{subject}'. View: https://mail.google.com/mail/u/0/#inbox/{sent_message.get('id')}"
 
-@register_tool
+
 async def reply_to_gmail(message_id: str, body: str, session_id: str):
     """
     Reply to an email using Gmail.

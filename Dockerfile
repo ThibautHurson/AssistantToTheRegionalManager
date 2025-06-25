@@ -16,6 +16,7 @@ SHELL ["conda", "run", "-n", "env", "/bin/bash", "-c"]
 # Activate env in future commands
 RUN echo "source activate env" >> ~/.bashrc
 ENV PATH /opt/conda/envs/env/bin:$PATH
+ENV PYTHONPATH=/app
 
 # Copy your app code
 COPY . .

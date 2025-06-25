@@ -2,7 +2,11 @@ from mistralai import Mistral
 import os
 from dotenv import load_dotenv
 import json
-import httpx
+from typing import Optional
+from contextlib import AsyncExitStack
+from mcp import ClientSession, StdioServerParameters
+from mcp.client.stdio import stdio_client
+from mistralai.models import sdkerror
 
 from backend.assistant_app.agents.base_agent import BaseAgent
 from backend.assistant_app.memory.redis_history_store import RedisHistoryStore
@@ -10,12 +14,16 @@ from backend.assistant_app.memory.context_manager import HybridContextManager
 from backend.assistant_app.memory.vector_stores.faiss_vector_store import VectorStoreManager
 from backend.assistant_app.memory.summarizer import SummarizationManager
 from backend.assistant_app.utils.handle_errors import retry_on_rate_limit_async
-from mistralai.models import sdkerror
+from backend.assistant_app.agents.prompts.prompt_builder import build_system_prompt
 
-class MistralChatAgent(BaseAgent):
-    def __init__(self, config=None, system_prompt=None, tools=None, max_steps=5):
+class MistralMCPChatAgent(BaseAgent):
+    """
+    An agent that orchestrates Mistral LLM chat and MCP tool use.
+    Connects to an MCP server, dynamically discovers tools, and routes LLM tool calls to MCP.
+    Supports multi-step tool use (max_steps).
+    """
+    def __init__(self, config=None, max_steps=5):
         load_dotenv()
-        super().__init__(config)
         self.config = config or {}
         self.api_key = os.getenv(self.config.get("api_key_env_var", "MISTRAL_API_KEY"))
         if not self.api_key:
@@ -24,6 +32,54 @@ class MistralChatAgent(BaseAgent):
         self.client = Mistral(api_key=self.api_key)
         self.model = self.config.get("model", "mistral-small-latest")
         
+
+
+        self.max_steps = max_steps
+        self.current_session_id = None
+
+        self.exit_stack = AsyncExitStack()
+        self.session: Optional[ClientSession] = None
+        self.mcp_tools = []
+        self.system_prompt = ""
+
+
+    @retry_on_rate_limit_async(
+        max_attempts=5,
+        wait_seconds=1,
+        retry_on=sdkerror.SDKError
+    )
+    async def call_mistral_with_retry(self, messages, tools):
+        print("Calling mistral")
+        response = await self.client.chat.complete_async(
+            model=self.model,
+            messages=messages,
+            tools=tools,
+        )
+        return response
+
+
+    async def connect_to_server(self, server_script_path: str):
+        """Connect to the MCP server and cache available tools (Anthropic example style)."""
+        is_python = server_script_path.endswith('.py')
+        is_js = server_script_path.endswith('.js')
+        if not (is_python or is_js):
+            raise ValueError("Server script must be a .py or .js file")
+        command = "python" if is_python else "node"
+        server_params = StdioServerParameters(
+            command=command,
+            args=[server_script_path],
+            env=os.environ.copy()
+        )
+        stdio_transport = await self.exit_stack.enter_async_context(stdio_client(server_params))
+        self.stdio, self.write = stdio_transport
+        self.session = await self.exit_stack.enter_async_context(ClientSession(self.stdio, self.write))
+        await self.session.initialize()
+        # List and cache available tools
+        response = await self.session.list_tools()
+        self.mcp_tools = response.tools
+
+        # Build the system prompt
+        self.system_prompt = build_system_prompt(self.mcp_tools)
         # Initialize memory and context components
         history_store = RedisHistoryStore()
         vector_store = VectorStoreManager() # Uses default paths
@@ -32,56 +88,36 @@ class MistralChatAgent(BaseAgent):
             history_store=history_store,
             vector_store=vector_store,
             summarizer=summarizer,
-            system_prompt=system_prompt
+            system_prompt=self.system_prompt
         )
+        print("\nConnected to server with tools:", [tool.name for tool in self.mcp_tools])
 
-        self.tools = tools
-        self.max_steps = max_steps
-        self.current_session_id = None
-
-    async def call_tool_via_router(self, tool_name: str, tool_args: dict) -> str:
-        print("In call_tool_via_router")
-        # Inject session_id into tool arguments
-        if self.current_session_id:
-            tool_args["session_id"] = self.current_session_id
-            
-        fast_api_uri = os.getenv("FASTAPI_URI")
-        url = f"{fast_api_uri}/tools/run"
-        print(f"Sending request to {url}...")
-        async with httpx.AsyncClient(timeout=10.0) as client:
-            response = await client.post(url, json={"tool_name": tool_name, "args": tool_args})
-
-        response.raise_for_status()
-        return response.json()
-    
-    @retry_on_rate_limit_async(
-        max_attempts=5,
-        wait_seconds=1,
-        retry_on=sdkerror.SDKError
-    )
-    async def call_mistral_with_retry(self, messages):
-        print("Calling mistral")
-        response = await self.client.chat.complete_async(
-            model=self.model,
-            messages=messages,
-            tools=self.tools,
-        )
-        return response
-
-    async def run(self, input_data: str, session_id: str) -> str:
-        # Store the current session_id
-        self.current_session_id = session_id
-        
+    async def run(self, query: str, session_id: str) -> str:
+        """
+        Multi-step chat. Handles tool calls via MCP and returns the final assistant message.
+        Uses Anthropic example naming and structure for MCP parts only.
+        """
         # Get the hybrid context, now including the user query for RAG
-        llm_context = await self.context_manager.get_context(session_id, user_query=input_data)
-        llm_context.append({"role": "user", "content": input_data})
-
-        # Keep track of new messages for this turn to append to full history
-        new_messages_this_turn = [{"role": "user", "content": input_data}]
-
+        llm_context = await self.context_manager.get_context(session_id, user_query=query)
+        llm_context.append({"role": "user", "content": query})
+        new_messages_this_turn = [{"role": "user", "content": query}]
+        tool_schemas = [
+            {
+                "type": "function",
+                "function": {
+                    "name": tool.name,
+                    "description": tool.description,
+                    "parameters": tool.inputSchema
+                }
+            }
+            for tool in self.mcp_tools
+        ]
         for step in range(self.max_steps):
             print(f"Step {step+1}")
-            response = await self.call_mistral_with_retry(messages=llm_context)
+            response = await self.call_mistral_with_retry(
+                messages=llm_context,
+                tools=tool_schemas,
+            )
             message = response.choices[0].message
 
             # Append new message to both the temporary LLM context and our list of new messages
@@ -96,13 +132,27 @@ class MistralChatAgent(BaseAgent):
                     print(f"Tool arguments: {tool_call.function.arguments}")
                     tool_name = tool_call.function.name
                     tool_args = json.loads(tool_call.function.arguments)
-                    result = await self.call_tool_via_router(tool_name, tool_args)
-                    print(result)
+                    tool_args["session_id"] = session_id
+                    result = await self.session.call_tool(tool_name, tool_args)
+                    print("Content of result:", result.content)
+
+                    # Convert the result to a string
+                    content = result.content
+                    if isinstance(content, list):
+                        # Join all .text fields if they exist
+                        content_str = "\n".join(
+                            getattr(item, "text", str(item)) for item in content
+                        )
+                    elif hasattr(content, "text"):
+                        content_str = content.text
+                    else:
+                        content_str = str(content)
+
                     tool_outputs.append({
                         "tool_call_id": tool_call.id,
                         "role": "tool",
                         "name": tool_name,
-                        "content": result
+                        "content": content_str
                     })
 
                 # Append tool results to both contexts
@@ -121,3 +171,6 @@ class MistralChatAgent(BaseAgent):
         final_content = llm_context[-1].get("content", "Max steps reached.")
         await self.context_manager.save_new_messages(session_id, new_messages_this_turn)
         return final_content
+
+    async def cleanup(self):
+        await self.exit_stack.aclose()

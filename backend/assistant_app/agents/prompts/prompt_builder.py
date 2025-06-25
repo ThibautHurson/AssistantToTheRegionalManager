@@ -15,9 +15,9 @@ def build_system_prompt(tools: list[str], base_prompt: str = "default_system_pro
     
     for tool in tools:
         try:
-            section = load_prompt(f"{tool}_prompt")
-            prompt_sections.append(f"\n### Instructions for `{tool}`\n{section}")
+            section = load_prompt(f"{tool.name}_prompt")
+            prompt_sections.append(f"\n### Instructions for `{tool.name}`\n{section}")
         except FileNotFoundError:
-            print(f"[Warning] No prompt found for tool: {tool}")
+            print(f"[Warning] No prompt found for tool: {tool.name}")
     
     return "\n\n".join(prompt_sections)
