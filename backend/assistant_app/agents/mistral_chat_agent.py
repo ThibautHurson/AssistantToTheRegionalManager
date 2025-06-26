@@ -7,6 +7,7 @@ from contextlib import AsyncExitStack
 from mcp import ClientSession, StdioServerParameters
 from mcp.client.stdio import stdio_client
 from mistralai.models import sdkerror
+import copy
 
 from backend.assistant_app.agents.base_agent import BaseAgent
 from backend.assistant_app.memory.redis_history_store import RedisHistoryStore
@@ -101,17 +102,25 @@ class MistralMCPChatAgent(BaseAgent):
         llm_context = await self.context_manager.get_context(session_id, user_query=query)
         llm_context.append({"role": "user", "content": query})
         new_messages_this_turn = [{"role": "user", "content": query}]
-        tool_schemas = [
-            {
+
+        tool_schemas = []
+        for tool in self.mcp_tools:
+            # Deep copy to avoid mutating the original schema
+            params = copy.deepcopy(tool.inputSchema)
+            # Agent filters the schemas to remove session_id before sending to LLM
+            if "properties" in params and "session_id" in params["properties"]:
+                del params["properties"]["session_id"]
+            if "required" in params and "session_id" in params["required"]:
+                params["required"] = [r for r in params["required"] if r != "session_id"]
+            tool_schemas.append({
                 "type": "function",
                 "function": {
                     "name": tool.name,
                     "description": tool.description,
-                    "parameters": tool.inputSchema
+                    "parameters": params
                 }
-            }
-            for tool in self.mcp_tools
-        ]
+            })
+        print(tool_schemas)
         for step in range(self.max_steps):
             print(f"Step {step+1}")
             response = await self.call_mistral_with_retry(
@@ -133,27 +142,39 @@ class MistralMCPChatAgent(BaseAgent):
                     tool_name = tool_call.function.name
                     tool_args = json.loads(tool_call.function.arguments)
                     tool_args["session_id"] = session_id
-                    result = await self.session.call_tool(tool_name, tool_args)
-                    print("Content of result:", result.content)
-
-                    # Convert the result to a string
-                    content = result.content
-                    if isinstance(content, list):
-                        # Join all .text fields if they exist
-                        content_str = "\n".join(
-                            getattr(item, "text", str(item)) for item in content
-                        )
-                    elif hasattr(content, "text"):
-                        content_str = content.text
-                    else:
-                        content_str = str(content)
-
-                    tool_outputs.append({
-                        "tool_call_id": tool_call.id,
-                        "role": "tool",
-                        "name": tool_name,
-                        "content": content_str
-                    })
+                    
+                    # Enhanced error handling for tool calls
+                    try:
+                        result = await self.session.call_tool(tool_name, tool_args)
+                        
+                        # Convert the result to a string
+                        content = result.content
+                        if isinstance(content, list):
+                            # Join all .text fields if they exist
+                            content_str = "\n".join(
+                                getattr(item, "text", str(item)) for item in content
+                            )
+                        elif hasattr(content, "text"):
+                            content_str = content.text
+                        else:
+                            content_str = str(content)
+                            
+                        tool_outputs.append({
+                            "tool_call_id": tool_call.id,
+                            "role": "tool",
+                            "name": tool_name,
+                            "content": content_str
+                        })
+                    except Exception as e:
+                        # Graceful error handling
+                        error_content = f"Tool '{tool_name}' failed: {str(e)}. Please try again or ask for help."
+                        print(f"Tool error: {error_content}")
+                        tool_outputs.append({
+                            "tool_call_id": tool_call.id,
+                            "role": "tool",
+                            "name": tool_name,
+                            "content": error_content
+                        })
 
                 # Append tool results to both contexts
                 llm_context.extend(tool_outputs)
