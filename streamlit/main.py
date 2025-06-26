@@ -60,6 +60,32 @@ st.markdown("""
         resize: vertical !important;
         width: 80%;
     }
+    /* Lighter text color for prompt text areas only */
+    .prompt-manager .stTextArea textarea {
+        color: #666666 !important;
+        font-family: 'Courier New', monospace !important;
+        max-height: none !important;
+        min-height: 600px !important;
+    }
+    /* Specific styling for prompt manager text areas */
+    .prompt-manager .stTextArea textarea {
+        max-height: none !important;
+        min-height: 600px !important;
+    }
+    /* Override general textarea rules for prompt manager */
+    .prompt-manager textarea {
+        max-height: none !important;
+        min-height: 600px !important;
+        color: #666666 !important;
+        font-family: 'Courier New', monospace !important;
+    }
+    /* Target Streamlit's specific text area elements in prompt manager */
+    .prompt-manager [data-testid="stTextArea"] textarea {
+        max-height: none !important;
+        min-height: 600px !important;
+        color: #666666 !important;
+        font-family: 'Courier New', monospace !important;
+    }
     .prompt-card {
         background: #f8f9fa;
         border: 1px solid #dee2e6;
@@ -83,6 +109,24 @@ st.markdown("""
         max-height: 200px;
         overflow-y: auto;
     }
+    /* Clean info box styling */
+    .stInfo {
+        background-color: #e3f2fd !important;
+        border: 1px solid #2196f3 !important;
+        border-radius: 8px !important;
+        padding: 0.5rem !important;
+        margin-bottom: 1rem !important;
+    }
+    /* Button styling for message toggle */
+    .stButton > button {
+        border-radius: 8px !important;
+        font-weight: 500 !important;
+        transition: all 0.2s ease !important;
+    }
+    .stButton > button:hover {
+        transform: translateY(-1px) !important;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1) !important;
+    }
     </style>
 """, unsafe_allow_html=True)
 
@@ -98,6 +142,10 @@ if "chat_history" not in st.session_state:
         st.session_state.chat_history = json.loads(history_json)
     else:
         st.session_state.chat_history = []
+
+# Message display control
+if "message_limit" not in st.session_state:
+    st.session_state.message_limit = 10  # Default to show last 10 messages
 
 def check_auth():
     """Check if user is authenticated with Google"""
@@ -124,12 +172,39 @@ def check_auth():
 
 # 2. Display chat UI
 def show_chat():
+    # Clean message display controls
+    total_messages = len(st.session_state.chat_history)
+    
+    # Message display controls
+    if total_messages > 10:  # Only show controls if there are many messages
+        col1, col2, col3 = st.columns([2, 1, 1])
+        
+        with col1:
+            st.info(f"📋 Showing last {st.session_state.message_limit} of {total_messages} messages")
+        
+        with col2:
+            # Show "Show 10 More" button if there are more messages to load
+            if total_messages > st.session_state.message_limit:
+                if st.button("Show 10 More"):
+                    st.session_state.message_limit = min(st.session_state.message_limit + 10, total_messages)
+                    st.rerun()
+        
+        with col3:
+            # Show "Show Recent" button if we're showing more than 10 messages
+            if st.session_state.message_limit > 10:
+                if st.button("Show Recent"):
+                    st.session_state.message_limit = 10
+                    st.rerun()
+    
     # Chat container for messages
     with st.container():
         st.markdown('<div class="chat-container">', unsafe_allow_html=True)
         
+        # Determine which messages to display
+        messages_to_display = st.session_state.chat_history[-st.session_state.message_limit:]
+        
         # Display chat messages in normal order (oldest at top, newest at bottom)
-        for sender, msg in st.session_state.chat_history:
+        for sender, msg in messages_to_display:
             if sender == "You":
                 st.markdown(f'<div class="chat-bubble user-bubble"><b>You:</b> {msg}</div>', unsafe_allow_html=True)
             else:
@@ -174,6 +249,9 @@ def show_prompt_manager():
     st.title("🎭 Prompt Manager")
     st.markdown("Manage and view MCP prompt templates that control the assistant's behavior.")
     
+    # Wrap in div with CSS class for specific styling
+    st.markdown('<div class="prompt-manager">', unsafe_allow_html=True)
+    
     # Create tabs for different prompt management features
     tab1, tab2, tab3 = st.tabs(["View Prompts", "Edit Prompts", "Create New"])
     
@@ -216,10 +294,14 @@ def show_prompt_manager():
                                     content_data = content_response.json()
                                     
                                     if "prompt" in content_data:
-                                        # Display the prompt content
-                                        st.markdown('<div class="prompt-content">', unsafe_allow_html=True)
-                                        st.text(content_data["prompt"])
-                                        st.markdown('</div>', unsafe_allow_html=True)
+                                        # Display the prompt content in a text area
+                                        st.text_area(
+                                            "Prompt Content:",
+                                            value=content_data["prompt"],
+                                            height=600,
+                                            disabled=True,
+                                            label_visibility="collapsed"
+                                        )
                                     else:
                                         st.error("No prompt content received")
                                         
@@ -275,7 +357,7 @@ def show_prompt_manager():
                                     new_content = st.text_area(
                                         "Edit prompt content:",
                                         value=current_content,
-                                        height=300
+                                        height=500
                                     )
                                     
                                     if st.form_submit_button("Update Prompt"):
@@ -319,8 +401,8 @@ def show_prompt_manager():
             new_prompt_name = st.text_input("Prompt name (without .md extension):")
             new_prompt_content = st.text_area(
                 "Prompt content (supports Markdown formatting):",
-                height=300,
-                placeholder="Enter the prompt content here...\n\n# Title\n## Section\n- **Bold text**\n- *Italic text*\n- `code`"
+                height=500,
+                placeholder="Enter the prompt content here...\n\n# Title\n## Section\n- **Bold text**\n- *Italic text**\n- `code`"
             )
             
             if st.form_submit_button("Create Prompt"):
@@ -346,6 +428,9 @@ def show_prompt_manager():
                         st.error(f"Error creating prompt: {e}")
                 else:
                     st.warning("Please provide both a name and content for the new prompt.")
+    
+    # Close the CSS wrapper div
+    st.markdown('</div>', unsafe_allow_html=True)
 
 # Entry point
 if not st.session_state.authenticated:
