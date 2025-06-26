@@ -1,8 +1,12 @@
 from mcp.server.fastmcp import FastMCP
+import mcp.types as types
 import os
 import json
 
-mcp = FastMCP("assistant-mcp-server")
+mcp = FastMCP(
+    "assistant-mcp-server",
+    description="Personal assistant server with Gmail and task management capabilities"
+)
 
 # --- Gmail Tools ---
 from backend.assistant_app.agents.tools.gmail_tools import search_gmail, send_gmail, reply_to_gmail
@@ -147,46 +151,64 @@ def get_default_prompt(prompt_name: str) -> str:
     return defaults.get(prompt_name, "Prompt template not found.")
 
 @mcp.prompt("system_base")
-async def get_system_base_prompt() -> str:
+async def get_system_base_prompt() -> types.GetPromptResult:
     """
     Base system prompt that defines the assistant's core personality and capabilities.
     """
-    return load_prompt_from_file("system_base")
+    content = load_prompt_from_file("system_base")
+    return types.GetPromptResult(
+        messages=[types.PromptMessage(role="assistant", content=types.TextContent(type="text", text=content))]
+    )
 
 @mcp.prompt("task_management")
-async def get_task_management_prompt() -> str:
+async def get_task_management_prompt() -> types.GetPromptResult:
     """
     Specialized prompt for task management operations.
     """
-    return load_prompt_from_file("task_management")
+    content = load_prompt_from_file("task_management")
+    return types.GetPromptResult(
+        messages=[types.PromptMessage(role="assistant", content=types.TextContent(type="text", text=content))]
+    )
 
 @mcp.prompt("email_assistant")
-async def get_email_assistant_prompt() -> str:
+async def get_email_assistant_prompt() -> types.GetPromptResult:
     """
     Specialized prompt for email operations.
     """
-    return load_prompt_from_file("email_assistant")
+    content = load_prompt_from_file("email_assistant")
+    return types.GetPromptResult(
+        messages=[types.PromptMessage(role="assistant", content=types.TextContent(type="text", text=content))]
+    )
 
 @mcp.prompt("conversation_context")
-async def get_conversation_context_prompt() -> str:
+async def get_conversation_context_prompt() -> types.GetPromptResult:
     """
     Prompt for maintaining conversation context and continuity.
     """
-    return load_prompt_from_file("conversation_context")
+    content = load_prompt_from_file("conversation_context")
+    return types.GetPromptResult(
+        messages=[types.PromptMessage(role="assistant", content=types.TextContent(type="text", text=content))]
+    )
 
 @mcp.prompt("error_handling")
-async def get_error_handling_prompt() -> str:
+async def get_error_handling_prompt() -> types.GetPromptResult:
     """
     Prompt for handling errors and providing helpful recovery suggestions.
     """
-    return load_prompt_from_file("error_handling")
+    content = load_prompt_from_file("error_handling")
+    return types.GetPromptResult(
+        messages=[types.PromptMessage(role="assistant", content=types.TextContent(type="text", text=content))]
+    )
 
 @mcp.prompt("productivity_coach")
-async def get_productivity_coach_prompt() -> str:
+async def get_productivity_coach_prompt() -> types.GetPromptResult:
     """
     Prompt for productivity coaching and time management advice.
     """
-    return load_prompt_from_file("productivity_coach")
+    content = load_prompt_from_file("productivity_coach")
+    return types.GetPromptResult(
+        messages=[types.PromptMessage(role="assistant", content=types.TextContent(type="text", text=content))]
+    )
 
 # --- Prompt Management Tools ---
 # Tools to help manage and customize prompts
@@ -286,6 +308,8 @@ async def create_prompt_template(prompt_name: str, content: str) -> str:
         return f"Prompt template '{prompt_name}' created successfully."
     except Exception as e:
         return f"Error creating prompt template: {str(e)}"
+    
+
 
 if __name__ == "__main__":
-    mcp.run(transport='stdio') 
+    mcp.run(transport='stdio')

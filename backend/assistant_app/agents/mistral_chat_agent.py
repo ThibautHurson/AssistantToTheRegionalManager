@@ -136,7 +136,7 @@ class MistralMCPChatAgent(BaseAgent):
                     tool_name = tool_call.function.name
                     tool_args = json.loads(tool_call.function.arguments)
                     tool_args["session_id"] = session_id
-                    
+
                     # Enhanced error handling for tool calls
                     try:
                         result = await self.session.call_tool(tool_name, tool_args)
