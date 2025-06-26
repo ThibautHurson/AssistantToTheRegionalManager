@@ -26,3 +26,4 @@ dependencies:
       - uvicorn[standard]
       - sentence-transformers
       - faiss-cpu
+      - mcp
