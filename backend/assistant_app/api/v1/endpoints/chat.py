@@ -57,7 +57,6 @@ async def chat(
         )
     
     try:
-        # Use the new agent's chat logic
         response = await chat_agent.run(payload.input, payload.session_id)
         return {"response": response}
     except Exception as e:

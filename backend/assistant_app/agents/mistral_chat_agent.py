@@ -15,13 +15,12 @@ from backend.assistant_app.memory.context_manager import HybridContextManager
 from backend.assistant_app.memory.vector_stores.faiss_vector_store import VectorStoreManager
 from backend.assistant_app.memory.summarizer import SummarizationManager
 from backend.assistant_app.utils.handle_errors import retry_on_rate_limit_async
-from backend.assistant_app.agents.prompts.prompt_builder import build_system_prompt
 
 class MistralMCPChatAgent(BaseAgent):
     """
     An agent that orchestrates Mistral LLM chat and MCP tool use.
     Connects to an MCP server, dynamically discovers tools, and routes LLM tool calls to MCP.
-    Supports multi-step tool use (max_steps).
+    Supports multi-step tool use (max_steps) and dynamic prompt management.
     """
     def __init__(self, config=None, max_steps=5):
         load_dotenv()
@@ -33,8 +32,6 @@ class MistralMCPChatAgent(BaseAgent):
         self.client = Mistral(api_key=self.api_key)
         self.model = self.config.get("model", "mistral-small-latest")
         
-
-
         self.max_steps = max_steps
         self.current_session_id = None
 
@@ -42,7 +39,6 @@ class MistralMCPChatAgent(BaseAgent):
         self.session: Optional[ClientSession] = None
         self.mcp_tools = []
         self.system_prompt = ""
-
 
     @retry_on_rate_limit_async(
         max_attempts=5,
@@ -58,9 +54,8 @@ class MistralMCPChatAgent(BaseAgent):
         )
         return response
 
-
     async def connect_to_server(self, server_script_path: str):
-        """Connect to the MCP server and cache available tools (Anthropic example style)."""
+        """Connect to the MCP server and cache available tools and prompts."""
         is_python = server_script_path.endswith('.py')
         is_js = server_script_path.endswith('.js')
         if not (is_python or is_js):
@@ -75,12 +70,14 @@ class MistralMCPChatAgent(BaseAgent):
         self.stdio, self.write = stdio_transport
         self.session = await self.exit_stack.enter_async_context(ClientSession(self.stdio, self.write))
         await self.session.initialize()
+        
         # List and cache available tools
         response = await self.session.list_tools()
         self.mcp_tools = response.tools
 
-        # Build the system prompt
-        self.system_prompt = build_system_prompt(self.mcp_tools)
+        # Build the dynamic system prompt using MCP prompts
+        self.system_prompt = await self.build_dynamic_system_prompt()
+        
         # Initialize memory and context components
         history_store = RedisHistoryStore()
         vector_store = VectorStoreManager() # Uses default paths
@@ -93,13 +90,108 @@ class MistralMCPChatAgent(BaseAgent):
         )
         print("\nConnected to server with tools:", [tool.name for tool in self.mcp_tools])
 
+    async def build_dynamic_system_prompt(self) -> str:
+        """Build a dynamic system prompt using MCP prompts."""
+        base_prompt = ""
+        
+        # Always include the base system prompt using MCP prompt method
+        try:
+            # Use the proper MCP get_prompt method
+            result = await self.session.get_prompt("system_base")
+            # Extract text content from the GetPromptResult
+            if result.messages and len(result.messages) > 0:
+                content = result.messages[0].content
+                if hasattr(content, 'text'):
+                    base_prompt = content.text
+                else:
+                    base_prompt = str(content)
+            else:
+                base_prompt = "You are an intelligent personal assistant that helps users manage their tasks and emails."
+        except Exception as e:
+            print(f"Could not fetch system_base prompt: {e}")
+            base_prompt = "You are an intelligent personal assistant that helps users manage their tasks and emails."
+        
+        # Add tool descriptions
+        tool_descriptions = "\n\n## Available Tools\n"
+        for tool in self.mcp_tools:
+            tool_descriptions += f"- **{tool.name}**: {tool.description}\n"
+        
+        return base_prompt + tool_descriptions
+
+    async def get_contextual_prompt(self, user_query: str) -> str:
+        """Get contextual prompts based on the user's query."""
+        contextual_prompts = []
+        
+        # Analyze query to determine relevant prompts
+        query_lower = user_query.lower()
+        
+        # Task-related queries
+        if any(word in query_lower for word in ['task', 'todo', 'priority', 'due', 'deadline', 'create', 'add', 'list', 'update', 'delete']):
+            try:
+                result = await self.session.get_prompt("task_management")
+                if result.messages and len(result.messages) > 0:
+                    content = result.messages[0].content
+                    if hasattr(content, 'text'):
+                        contextual_prompts.append(content.text)
+                    else:
+                        contextual_prompts.append(str(content))
+            except Exception as e:
+                print(f"Could not fetch task_management prompt: {e}")
+        
+        # Email-related queries
+        if any(word in query_lower for word in ['email', 'gmail', 'search', 'send', 'reply', 'inbox', 'message']):
+            try:
+                result = await self.session.get_prompt("email_assistant")
+                if result.messages and len(result.messages) > 0:
+                    content = result.messages[0].content
+                    if hasattr(content, 'text'):
+                        contextual_prompts.append(content.text)
+                    else:
+                        contextual_prompts.append(str(content))
+            except Exception as e:
+                print(f"Could not fetch email_assistant prompt: {e}")
+        
+        # Productivity-related queries
+        if any(word in query_lower for word in ['productivity', 'time', 'schedule', 'organize', 'efficient', 'workflow']):
+            try:
+                result = await self.session.get_prompt("productivity_coach")
+                if result.messages and len(result.messages) > 0:
+                    content = result.messages[0].content
+                    if hasattr(content, 'text'):
+                        contextual_prompts.append(content.text)
+                    else:
+                        contextual_prompts.append(str(content))
+            except Exception as e:
+                print(f"Could not fetch productivity_coach prompt: {e}")
+        
+        # Always include conversation context for continuity
+        try:
+            result = await self.session.get_prompt("conversation_context")
+            if result.messages and len(result.messages) > 0:
+                content = result.messages[0].content
+                if hasattr(content, 'text'):
+                    contextual_prompts.append(content.text)
+                else:
+                    contextual_prompts.append(str(content))
+        except Exception as e:
+            print(f"Could not fetch conversation_context prompt: {e}")
+        
+        return "\n\n".join(contextual_prompts)
+
     async def run(self, query: str, session_id: str) -> str:
         """
-        Multi-step chat. Handles tool calls via MCP and returns the final assistant message.
-        Uses Anthropic example naming and structure for MCP parts only.
+        Multi-step chat with dynamic prompt management. Handles tool calls via MCP and returns the final assistant message.
         """
+        # Get contextual prompts based on the user's query
+        contextual_prompt = await self.get_contextual_prompt(query)
+        
         # Get the hybrid context, now including the user query for RAG
         llm_context = await self.context_manager.get_context(session_id, user_query=query)
+        
+        # Add contextual prompt if available
+        if contextual_prompt:
+            llm_context.insert(0, {"role": "system", "content": contextual_prompt})
+        
         llm_context.append({"role": "user", "content": query})
         new_messages_this_turn = [{"role": "user", "content": query}]
 
@@ -120,7 +212,7 @@ class MistralMCPChatAgent(BaseAgent):
                     "parameters": params
                 }
             })
-        print(tool_schemas)
+        
         for step in range(self.max_steps):
             print(f"Step {step+1}")
             response = await self.call_mistral_with_retry(
@@ -166,8 +258,22 @@ class MistralMCPChatAgent(BaseAgent):
                             "content": content_str
                         })
                     except Exception as e:
-                        # Graceful error handling
-                        error_content = f"Tool '{tool_name}' failed: {str(e)}. Please try again or ask for help."
+                        # Get error handling prompt for better error responses
+                        try:
+                            result = await self.session.get_prompt("error_handling")
+                            if result.messages and len(result.messages) > 0:
+                                content = result.messages[0].content
+                                if hasattr(content, 'text'):
+                                    error_context = content.text
+                                else:
+                                    error_context = str(content)
+                            else:
+                                error_context = "Provide helpful error recovery suggestions."
+                        except:
+                            error_context = "Provide helpful error recovery suggestions."
+                        
+                        # Graceful error handling with contextual prompt
+                        error_content = f"Tool '{tool_name}' failed: {str(e)}. {error_context}"
                         print(f"Tool error: {error_content}")
                         tool_outputs.append({
                             "tool_call_id": tool_call.id,

@@ -1,5 +1,7 @@
 from mcp.server.fastmcp import FastMCP
 import os
+import json
+
 mcp = FastMCP("assistant-mcp-server")
 
 # --- Gmail Tools ---
@@ -114,6 +116,176 @@ async def get_next_task_tool(session_id: str) -> str:
     """
     result = get_next_task(session_id)
     return str(result)
+
+# --- MCP Prompts ---
+# Centralized prompt management using external files
+
+def load_prompt_from_file(prompt_name: str) -> str:
+    """Load prompt content from external file."""
+    # Get the directory where this script is located
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    prompt_dir = os.path.join(script_dir, "agents", "prompts")
+    prompt_file = os.path.join(prompt_dir, f"{prompt_name}.md")
+    
+    if os.path.exists(prompt_file):
+        with open(prompt_file, 'r', encoding='utf-8') as f:
+            return f.read().strip()
+    else:
+        # Fallback to default prompts if file doesn't exist
+        return get_default_prompt(prompt_name)
+
+def get_default_prompt(prompt_name: str) -> str:
+    """Fallback default prompts if files don't exist."""
+    defaults = {
+        "system_base": "You are an intelligent personal assistant that helps users manage their tasks and emails.",
+        "task_management": "You are a task management expert. Help users organize their work effectively.",
+        "email_assistant": "You are an email communication expert. Help users manage their inbox effectively.",
+        "conversation_context": "Maintain conversation context and provide continuity in your responses.",
+        "error_handling": "When tools fail or errors occur, help users recover gracefully.",
+        "productivity_coach": "You are a productivity coach helping users optimize their workflow."
+    }
+    return defaults.get(prompt_name, "Prompt template not found.")
+
+@mcp.prompt("system_base")
+async def get_system_base_prompt() -> str:
+    """
+    Base system prompt that defines the assistant's core personality and capabilities.
+    """
+    return load_prompt_from_file("system_base")
+
+@mcp.prompt("task_management")
+async def get_task_management_prompt() -> str:
+    """
+    Specialized prompt for task management operations.
+    """
+    return load_prompt_from_file("task_management")
+
+@mcp.prompt("email_assistant")
+async def get_email_assistant_prompt() -> str:
+    """
+    Specialized prompt for email operations.
+    """
+    return load_prompt_from_file("email_assistant")
+
+@mcp.prompt("conversation_context")
+async def get_conversation_context_prompt() -> str:
+    """
+    Prompt for maintaining conversation context and continuity.
+    """
+    return load_prompt_from_file("conversation_context")
+
+@mcp.prompt("error_handling")
+async def get_error_handling_prompt() -> str:
+    """
+    Prompt for handling errors and providing helpful recovery suggestions.
+    """
+    return load_prompt_from_file("error_handling")
+
+@mcp.prompt("productivity_coach")
+async def get_productivity_coach_prompt() -> str:
+    """
+    Prompt for productivity coaching and time management advice.
+    """
+    return load_prompt_from_file("productivity_coach")
+
+# --- Prompt Management Tools ---
+# Tools to help manage and customize prompts
+
+@mcp.tool()
+async def get_prompt_template(prompt_name: str) -> str:
+    """
+    Retrieve a specific prompt template by name.
+    Args:
+        prompt_name: Name of the prompt template to retrieve
+    Returns:
+        str: The prompt template content
+    """
+    return load_prompt_from_file(prompt_name)
+
+@mcp.tool()
+async def list_available_prompts() -> str:
+    """
+    List all available prompt templates.
+    Returns:
+        str: List of available prompt templates
+    """
+    # Get the directory where this script is located
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    prompt_dir = os.path.join(script_dir, "agents", "prompts")
+    available_prompts = []
+    
+    if os.path.exists(prompt_dir):
+        files = os.listdir(prompt_dir)
+        
+        for file in files:
+            if file.endswith('.md'):
+                prompt_name = file[:-3]  # Remove .md extension
+                available_prompts.append(prompt_name)
+    
+    if not available_prompts:
+        # Fallback to hardcoded list if no files found
+        available_prompts = [
+            "system_base",
+            "task_management", 
+            "email_assistant",
+            "conversation_context",
+            "error_handling",
+            "productivity_coach"
+        ]
+    
+    result = "Available prompt templates:\n" + "\n".join(f"- {prompt}" for prompt in available_prompts)
+    return result
+
+@mcp.tool()
+async def update_prompt_template(prompt_name: str, new_content: str) -> str:
+    """
+    Update a prompt template with new content.
+    Args:
+        prompt_name: Name of the prompt template to update
+        new_content: New content for the prompt
+    Returns:
+        str: Confirmation message
+    """
+    # Get the directory where this script is located
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    prompt_dir = os.path.join(script_dir, "agents", "prompts")
+    os.makedirs(prompt_dir, exist_ok=True)
+    
+    prompt_file = os.path.join(prompt_dir, f"{prompt_name}.md")
+    
+    try:
+        with open(prompt_file, 'w', encoding='utf-8') as f:
+            f.write(new_content)
+        return f"Prompt template '{prompt_name}' updated successfully."
+    except Exception as e:
+        return f"Error updating prompt template: {str(e)}"
+
+@mcp.tool()
+async def create_prompt_template(prompt_name: str, content: str) -> str:
+    """
+    Create a new prompt template.
+    Args:
+        prompt_name: Name for the new prompt template
+        content: Content of the prompt
+    Returns:
+        str: Confirmation message
+    """
+    # Get the directory where this script is located
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    prompt_dir = os.path.join(script_dir, "agents", "prompts")
+    os.makedirs(prompt_dir, exist_ok=True)
+    
+    prompt_file = os.path.join(prompt_dir, f"{prompt_name}.md")
+    
+    if os.path.exists(prompt_file):
+        return f"Prompt template '{prompt_name}' already exists. Use update_prompt_template to modify it."
+    
+    try:
+        with open(prompt_file, 'w', encoding='utf-8') as f:
+            f.write(content)
+        return f"Prompt template '{prompt_name}' created successfully."
+    except Exception as e:
+        return f"Error creating prompt template: {str(e)}"
 
 if __name__ == "__main__":
     mcp.run(transport='stdio') 

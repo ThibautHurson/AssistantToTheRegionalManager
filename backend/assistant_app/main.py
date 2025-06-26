@@ -3,7 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from dotenv import load_dotenv
 import os
 
-from backend.assistant_app.api.v1.endpoints import chat, oauth, gmail_webhook, task_router
+from backend.assistant_app.api.v1.endpoints import chat, oauth, gmail_webhook, task_router, prompt_router
 from backend.assistant_app.api_integration.db import engine
 from backend.assistant_app.models.task import Base
 
@@ -32,3 +32,4 @@ app.include_router(chat.router)
 app.include_router(oauth.router)
 app.include_router(gmail_webhook.router)
 app.include_router(task_router.router)
+app.include_router(prompt_router.router)
