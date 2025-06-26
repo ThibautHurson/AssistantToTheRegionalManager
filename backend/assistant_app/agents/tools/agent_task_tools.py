@@ -1,9 +1,8 @@
-from typing import List, Optional
+from typing import Optional
 from datetime import datetime
 from pydantic import BaseModel
 
 from backend.assistant_app.models.task_manager import get_task_manager
-from backend.assistant_app.utils.tool_registry import register_tool
 
 class TaskInput(BaseModel):
     title: str
@@ -12,7 +11,7 @@ class TaskInput(BaseModel):
     priority: int = 1
     status: str = "pending"
 
-@register_tool
+
 def add_task(session_id: str, title: str, description: Optional[str] = None, 
              due_date: Optional[datetime] = None, priority: int = 1) -> str:
     """Add a new task to the task manager.
@@ -36,7 +35,7 @@ def add_task(session_id: str, title: str, description: Optional[str] = None,
     )
     return f"Task '{task.title}' added successfully with ID: {task.id}"
 
-@register_tool
+
 def delete_task(session_id: str, task_id: str) -> str:
     """Delete a task from the task manager.
     
@@ -52,7 +51,7 @@ def delete_task(session_id: str, task_id: str) -> str:
         return f"Task {task_id} deleted successfully"
     return f"Task {task_id} not found"
 
-@register_tool
+
 def update_task(session_id: str, task_id: str, **kwargs) -> str:
     """Update a task in the task manager.
     
@@ -70,7 +69,7 @@ def update_task(session_id: str, task_id: str, **kwargs) -> str:
         return f"Task '{updated_task.title}' updated successfully"
     return f"Task {task_id} not found"
 
-@register_tool
+
 def list_tasks(session_id: str, status: Optional[str] = None, priority: Optional[int] = None) -> str:
     """List all tasks for the user.
     
@@ -100,7 +99,7 @@ def list_tasks(session_id: str, status: Optional[str] = None, priority: Optional
     
     return result
 
-@register_tool
+
 def get_next_task(session_id: str) -> str:
     """Get the next task based on priority and due date.
     

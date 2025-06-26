@@ -11,3 +11,5 @@ __pycache__/
 google_setup/
 backend/assistant_app/memory/vector_stores/faiss_index.bin
 backend/assistant_app/memory/vector_stores/faiss_mapping.json
+
+backend/assistant_app/memory/prompt_vector_store/

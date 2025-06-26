@@ -2,6 +2,7 @@ import json
 from backend.assistant_app.memory.redis_history_store import RedisHistoryStore
 from backend.assistant_app.memory.vector_stores.faiss_vector_store import VectorStoreManager
 from backend.assistant_app.memory.summarizer import SummarizationManager
+from backend.assistant_app.memory.prompt_selector import HybridPromptSelector
 
 class HybridContextManager:
     def __init__(
@@ -9,57 +10,108 @@ class HybridContextManager:
         history_store: RedisHistoryStore,
         vector_store: VectorStoreManager,
         summarizer: SummarizationManager,
-        system_prompt: str = None,
+        mcp_session=None,
         short_term_memory_size: int = 10,
         summary_update_interval: int = 20  # Number of messages before updating summary
     ):
         self.history_store = history_store
         self.vector_store = vector_store
         self.summarizer = summarizer
-        self.system_prompt = system_prompt
+        self.mcp_session = mcp_session
         self.short_term_memory_size = short_term_memory_size
         self.summary_update_interval = summary_update_interval
+        
+        # Initialize prompt selector
+        self.prompt_selector = HybridPromptSelector()
 
     def _get_summary_key(self, session_id: str) -> str:
         return f"summary:{session_id}"
 
+    async def build_dynamic_system_prompt(self, user_query: str = "") -> str:
+        """Build a dynamic system prompt using MCP prompts and semantic selection."""
+        base_prompt = ""
+        
+        # Always include the base system prompt using MCP prompt method
+        if self.mcp_session:
+            try:
+                result = await self.mcp_session.get_prompt("system_base")
+                if result.messages and len(result.messages) > 0:
+                    content = result.messages[0].content
+                    if hasattr(content, 'text'):
+                        base_prompt = content.text
+                    else:
+                        base_prompt = str(content)
+                else:
+                    base_prompt = "You are an intelligent personal assistant that helps users manage their tasks and emails."
+            except Exception as e:
+                print(f"Could not fetch system_base prompt: {e}")
+                base_prompt = "You are an intelligent personal assistant that helps users manage their tasks and emails."
+        else:
+            base_prompt = "You are an intelligent personal assistant that helps users manage their tasks and emails."
+        
+        # Use semantic prompt selector to find relevant prompts
+        contextual_prompts = []
+        if user_query.strip() and self.mcp_session:
+            selected_prompts = self.prompt_selector.select_prompts(
+                user_query, 
+                use_semantic=True, 
+                use_keywords=False
+            )
+            
+            # Fetch selected prompts from MCP
+            for prompt_name in selected_prompts:
+                try:
+                    result = await self.mcp_session.get_prompt(prompt_name)
+                    if result.messages and len(result.messages) > 0:
+                        content = result.messages[0].content
+                        if hasattr(content, 'text'):
+                            contextual_prompts.append(content.text)
+                        else:
+                            contextual_prompts.append(str(content))
+                except Exception as e:
+                    print(f"Could not fetch {prompt_name} prompt: {e}")
+        
+        # Combine all prompts
+        all_prompts = [base_prompt] + contextual_prompts
+        return "\n\n".join(all_prompts)
+
     async def get_context(self, session_id: str, user_query: str) -> list[dict]:
         """
-        Builds a hybrid context for the LLM.
+        Builds a complete hybrid context for the LLM including dynamic system prompt.
         """
-        # 1. Get current summary from Redis
+        context = []
+        
+        # 1. Build and add dynamic system prompt first
+        system_prompt = await self.build_dynamic_system_prompt(user_query)
+        if system_prompt:
+            context.append({"role": "system", "content": system_prompt})
+        
+        # 2. Get current summary from Redis
         summary = self.history_store.redis.get(self._get_summary_key(session_id)) or "No summary yet."
 
-        # 2. Get relevant documents from Vector Store (RAG)
-        rag_docs = self.vector_store.search(user_query, k=3)
+        # 3. Get relevant historical messages from Vector Store (RAG)
+        rag_msg = self.vector_store.search(user_query, k=3)
         
-        # 3. Get recent messages (short-term memory)
+        # 4. Get recent messages (short-term memory)
         # Fetch a larger chunk for alignment
         full_recent_history = self.history_store.get_history(session_id, self.short_term_memory_size * 3)
         recent_messages = self.history_store.get_history(session_id, self.short_term_memory_size)
         recent_messages = self._fix_tool_message_alignment(recent_messages, full_recent_history)
 
-        # 4. Construct the context prompt
-        context = []
-        if self.system_prompt:
-            context.append({"role": "system", "content": self.system_prompt})
-
-        # Assemble the informational context for the 'assistant' to consider
+        # 5. Assemble the informational context for the 'assistant' to consider
         informational_context = (
             f"--- Conversation Summary ---\n{summary}\n\n"
-            f"--- Relevant Information (from long-term memory) ---\n"
+            f"--- Relevant Historical Messages (from long-term memory) ---\n"
         )
-        if rag_docs:
-            informational_context += "\n".join(f"- {doc}" for doc in rag_docs)
+        if rag_msg:
+            informational_context += "\n".join(f"- {msg}" for msg in rag_msg)
         else:
             informational_context += "No specific relevant information found in long-term memory."
 
-        # We'll inject this combined context as a single 'system' or 'user' message
-        # before the main conversation history starts.
-        # Note: Using a 'user' role for this might be more effective with some models.
+        # Add informational context as a user message
         context.append({"role": "user", "content": f"Please use the following context to inform your response:\n{informational_context}"})
         
-        # Add the recent, sequential conversation history
+        # 6. Add the recent, sequential conversation history
         context.extend(recent_messages)
 
         return context
