@@ -38,7 +38,6 @@ class MistralMCPChatAgent(BaseAgent):
         self.exit_stack = AsyncExitStack()
         self.session: Optional[ClientSession] = None
         self.mcp_tools = []
-        self.system_prompt = ""
 
     @retry_on_rate_limit_async(
         max_attempts=5,
@@ -74,11 +73,8 @@ class MistralMCPChatAgent(BaseAgent):
         # List and cache available tools
         response = await self.session.list_tools()
         self.mcp_tools = response.tools
-
-        # Build the dynamic system prompt using MCP prompts
-        self.system_prompt = await self.build_dynamic_system_prompt()
         
-        # Initialize memory and context components
+        # Initialize memory and context components with MCP session
         history_store = RedisHistoryStore()
         vector_store = VectorStoreManager() # Uses default paths
         summarizer = SummarizationManager()
@@ -86,112 +82,18 @@ class MistralMCPChatAgent(BaseAgent):
             history_store=history_store,
             vector_store=vector_store,
             summarizer=summarizer,
-            system_prompt=self.system_prompt
+            mcp_session=self.session  # Pass MCP session for prompt fetching
         )
         print("\nConnected to server with tools:", [tool.name for tool in self.mcp_tools])
 
-    async def build_dynamic_system_prompt(self) -> str:
-        """Build a dynamic system prompt using MCP prompts."""
-        base_prompt = ""
-        
-        # Always include the base system prompt using MCP prompt method
-        try:
-            # Use the proper MCP get_prompt method
-            result = await self.session.get_prompt("system_base")
-            # Extract text content from the GetPromptResult
-            if result.messages and len(result.messages) > 0:
-                content = result.messages[0].content
-                if hasattr(content, 'text'):
-                    base_prompt = content.text
-                else:
-                    base_prompt = str(content)
-            else:
-                base_prompt = "You are an intelligent personal assistant that helps users manage their tasks and emails."
-        except Exception as e:
-            print(f"Could not fetch system_base prompt: {e}")
-            base_prompt = "You are an intelligent personal assistant that helps users manage their tasks and emails."
-        
-        # Add tool descriptions
-        tool_descriptions = "\n\n## Available Tools\n"
-        for tool in self.mcp_tools:
-            tool_descriptions += f"- **{tool.name}**: {tool.description}\n"
-        
-        return base_prompt + tool_descriptions
-
-    async def get_contextual_prompt(self, user_query: str) -> str:
-        """Get contextual prompts based on the user's query."""
-        contextual_prompts = []
-        
-        # Analyze query to determine relevant prompts
-        query_lower = user_query.lower()
-        
-        # Task-related queries
-        if any(word in query_lower for word in ['task', 'todo', 'priority', 'due', 'deadline', 'create', 'add', 'list', 'update', 'delete']):
-            try:
-                result = await self.session.get_prompt("task_management")
-                if result.messages and len(result.messages) > 0:
-                    content = result.messages[0].content
-                    if hasattr(content, 'text'):
-                        contextual_prompts.append(content.text)
-                    else:
-                        contextual_prompts.append(str(content))
-            except Exception as e:
-                print(f"Could not fetch task_management prompt: {e}")
-        
-        # Email-related queries
-        if any(word in query_lower for word in ['email', 'gmail', 'search', 'send', 'reply', 'inbox', 'message']):
-            try:
-                result = await self.session.get_prompt("email_assistant")
-                if result.messages and len(result.messages) > 0:
-                    content = result.messages[0].content
-                    if hasattr(content, 'text'):
-                        contextual_prompts.append(content.text)
-                    else:
-                        contextual_prompts.append(str(content))
-            except Exception as e:
-                print(f"Could not fetch email_assistant prompt: {e}")
-        
-        # Productivity-related queries
-        if any(word in query_lower for word in ['productivity', 'time', 'schedule', 'organize', 'efficient', 'workflow']):
-            try:
-                result = await self.session.get_prompt("productivity_coach")
-                if result.messages and len(result.messages) > 0:
-                    content = result.messages[0].content
-                    if hasattr(content, 'text'):
-                        contextual_prompts.append(content.text)
-                    else:
-                        contextual_prompts.append(str(content))
-            except Exception as e:
-                print(f"Could not fetch productivity_coach prompt: {e}")
-        
-        # Always include conversation context for continuity
-        try:
-            result = await self.session.get_prompt("conversation_context")
-            if result.messages and len(result.messages) > 0:
-                content = result.messages[0].content
-                if hasattr(content, 'text'):
-                    contextual_prompts.append(content.text)
-                else:
-                    contextual_prompts.append(str(content))
-        except Exception as e:
-            print(f"Could not fetch conversation_context prompt: {e}")
-        
-        return "\n\n".join(contextual_prompts)
-
     async def run(self, query: str, session_id: str) -> str:
         """
-        Multi-step chat with dynamic prompt management. Handles tool calls via MCP and returns the final assistant message.
+        Multi-step chat with unified context management. Handles tool calls via MCP and returns the final assistant message.
         """
-        # Get contextual prompts based on the user's query
-        contextual_prompt = await self.get_contextual_prompt(query)
-        
-        # Get the hybrid context, now including the user query for RAG
+        # Get the complete context including dynamic system prompt
         llm_context = await self.context_manager.get_context(session_id, user_query=query)
         
-        # Add contextual prompt if available
-        if contextual_prompt:
-            llm_context.insert(0, {"role": "system", "content": contextual_prompt})
-        
+        # Add the current user query
         llm_context.append({"role": "user", "content": query})
         new_messages_this_turn = [{"role": "user", "content": query}]
 
