@@ -127,6 +127,21 @@ st.markdown("""
         transform: translateY(-1px) !important;
         box-shadow: 0 2px 4px rgba(0,0,0,0.1) !important;
     }
+    .main .block-container {
+        padding-top: 0.2rem !important;
+    }
+    /* Make title more compact */
+    h1 {
+        margin-top: 0.2rem !important;
+        margin-bottom: 0.8rem !important;
+        font-size: 1.8rem !important;
+        padding-top: 0 !important;
+    }
+    /* Remove extra spacing from Streamlit elements */
+    .stMarkdown {
+        margin-top: 0 !important;
+        padding-top: 0 !important;
+    }
     </style>
 """, unsafe_allow_html=True)
 
@@ -145,7 +160,7 @@ if "chat_history" not in st.session_state:
 
 # Message display control
 if "message_limit" not in st.session_state:
-    st.session_state.message_limit = 10  # Default to show last 10 messages
+    st.session_state.message_limit = 5  # Default to show last 5 messages
 
 def check_auth():
     """Check if user is authenticated with Google"""
@@ -176,24 +191,24 @@ def show_chat():
     total_messages = len(st.session_state.chat_history)
     
     # Message display controls
-    if total_messages > 10:  # Only show controls if there are many messages
+    if total_messages > 5:  # Only show controls if there are many messages
         col1, col2, col3 = st.columns([2, 1, 1])
         
         with col1:
             st.info(f"📋 Showing last {st.session_state.message_limit} of {total_messages} messages")
         
         with col2:
-            # Show "Show 10 More" button if there are more messages to load
+            # Show "Show 5 More" button if there are more messages to load
             if total_messages > st.session_state.message_limit:
-                if st.button("Show 10 More"):
-                    st.session_state.message_limit = min(st.session_state.message_limit + 10, total_messages)
+                if st.button("Show 5 More"):
+                    st.session_state.message_limit = min(st.session_state.message_limit + 5, total_messages)
                     st.rerun()
         
         with col3:
-            # Show "Show Recent" button if we're showing more than 10 messages
-            if st.session_state.message_limit > 10:
+            # Show "Show Recent" button if we're showing more than 5 messages
+            if st.session_state.message_limit > 5:
                 if st.button("Show Recent"):
-                    st.session_state.message_limit = 10
+                    st.session_state.message_limit = 5
                     st.rerun()
     
     # Chat container for messages
