@@ -217,6 +217,22 @@ async def get_productivity_coach_prompt() -> types.GetPromptResult:
         messages=[types.PromptMessage(role="assistant", content=types.TextContent(type="text", text=content))]
     )
 
+@mcp.prompt("web_search_system")
+async def get_web_search_system_prompt() -> types.GetPromptResult:
+    """Get the web search system prompt for web research queries."""
+    content = load_prompt_from_file("web_search_system")
+    return types.GetPromptResult(
+        messages=[
+            types.PromptMessage(
+                role="assistant",
+                content=types.TextContent(
+                    type="text",
+                    text=content
+                )
+            )
+        ]
+    )
+
 # --- Prompt Management Tools ---
 # Tools to help manage and customize prompts
 

@@ -36,7 +36,8 @@ class SemanticPromptSelector:
             "task_management": "Task creation, todo lists, priority management, deadlines, task organization, project management",
             "productivity_coach": "Time management, workflow optimization, efficiency tips, scheduling, productivity advice",
             "error_handling": "Error recovery, troubleshooting, problem solving, graceful failure handling",
-            "conversation_context": "Maintaining conversation flow, context awareness, continuity in dialogue"
+            "conversation_context": "Maintaining conversation flow, context awareness, continuity in dialogue",
+            "web_search_system": "Web research, news search, information gathering, content fetching, source attribution, multiple URL fetching, current events, real-time information"
         }
         
         self._load_or_create_index()
@@ -164,7 +165,51 @@ class HybridPromptSelector:
             "task_management": ["task", "todo", "priority", "due", "deadline", "create", "add", "list", "update", "delete", "project"],
             "productivity_coach": ["productivity", "time", "schedule", "organize", "efficient", "workflow", "optimize", "improve"],
             "error_handling": ["error", "problem", "issue", "fix", "troubleshoot", "debug", "help"],
-            "conversation_context": ["remember", "context", "previous", "earlier", "before"]
+            "conversation_context": ["remember", "context", "previous", "earlier", "before"],
+            "web_search_system": [
+                # Core web search terms
+                "news", "weather", "temperature", "current", "latest", "today", "recent", 
+                "search", "find", "information", "research", "look up", "check", "verify",
+                # Question words that indicate information seeking
+                "what is", "how to", "where", "when", "who", "why",
+                # Content types
+                "article", "report", "update", "forecast", "prediction", "trend", 
+                "statistics", "data", "facts", "truth", "real", "actual",
+                # Time-sensitive content
+                "live", "breaking", "developing", "happening", "occurring", "going on",
+                # Information categories
+                "situation", "condition", "status", "state", "circumstance", 
+                "event", "incident", "story", "coverage", "analysis", "investigation",
+                # Research and data gathering
+                "study", "survey", "poll", "election", "market", "stock", "price", 
+                "value", "cost", "rate", "percentage", "score", "rating", "review",
+                # Perspectives and opinions
+                "opinion", "view", "perspective", "outlook", "prospect",
+                # Time and scheduling
+                "future", "plan", "schedule", "calendar", "date", "time", 
+                "day", "week", "month", "year", "season", "period",
+                # Location and geography
+                "location", "place", "area", "region", "country", "city", "town",
+                "address", "map", "direction", "route", "path", "way",
+                # Sports and events
+                "world cup", "championship", "tournament", "competition", "match", "game",
+                "sport", "athletics", "olympics", "league", "team", "player", "athlete",
+                # Business and finance
+                "business", "company", "corporate", "financial", "economic", "market",
+                "investment", "stock", "trading", "economy", "finance", "money",
+                # Technology and science
+                "technology", "science", "research", "study", "discovery", "innovation",
+                "development", "advancement", "breakthrough", "invention", "patent",
+                # Entertainment and culture
+                "entertainment", "movie", "film", "music", "art", "culture", "celebrity",
+                "actor", "actress", "director", "artist", "musician", "performer",
+                # Politics and government
+                "politics", "government", "election", "vote", "campaign", "policy",
+                "law", "legislation", "regulation", "official", "minister", "president",
+                # Health and medicine
+                "health", "medical", "medicine", "doctor", "hospital", "treatment",
+                "disease", "illness", "symptom", "diagnosis", "cure", "vaccine"
+            ]
         }
     
     def select_prompts(self, user_query: str, use_semantic: bool = True, use_keywords: bool = True) -> List[str]:
