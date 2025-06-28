@@ -8,6 +8,7 @@ from mcp import ClientSession, StdioServerParameters
 from mcp.client.stdio import stdio_client
 from mistralai.models import sdkerror
 import copy
+import re
 
 from backend.assistant_app.agents.base_agent import BaseAgent
 from backend.assistant_app.memory.redis_history_store import RedisHistoryStore
@@ -86,6 +87,61 @@ class MistralMCPChatAgent(BaseAgent):
         )
         print("\nConnected to server with tools:", [tool.name for tool in self.mcp_tools])
 
+    async def connect_to_fetch_server(self):
+        """Connect to the official MCP Fetch server for web content fetching."""
+        try:
+            # Connect to the official fetch server
+            fetch_server_params = StdioServerParameters(
+                command="python",
+                args=["-m", "mcp_server_fetch"],
+                env=os.environ.copy()
+            )
+            fetch_transport = await self.exit_stack.enter_async_context(stdio_client(fetch_server_params))
+            fetch_stdio, fetch_write = fetch_transport
+            self.fetch_session = await self.exit_stack.enter_async_context(ClientSession(fetch_stdio, fetch_write))
+            await self.fetch_session.initialize()
+            
+            # Get fetch server tools
+            fetch_response = await self.fetch_session.list_tools()
+            fetch_tools = fetch_response.tools
+            
+            # Add fetch tools to the main tools list
+            self.mcp_tools.extend(fetch_tools)
+            
+            print(f"Connected to fetch server with tools: {[tool.name for tool in fetch_tools]}")
+            
+        except Exception as e:
+            print(f"Warning: Could not connect to fetch server: {e}")
+            print("Web fetching capabilities will not be available")
+            self.fetch_session = None
+
+    def _cleanup_source_references(self, content: str) -> str:
+        """Clean up any remaining [REF] format references and ensure proper source attribution."""
+        # Remove any [REF]tool_id[/REF] references
+        content = re.sub(r'\[REF\][^\[\]]*\[/REF\]', '', content)
+        
+        # If content contains URLs but no proper Sources section, add one
+        url_pattern = r'https?://[^\s\)]+'
+        urls = re.findall(url_pattern, content)
+        
+        if urls and 'Sources:' not in content and '**Sources:**' not in content:
+            # Extract domain names for source names
+            sources = []
+            for url in urls:
+                try:
+                    from urllib.parse import urlparse
+                    domain = urlparse(url).netloc
+                    source_name = domain.replace('www.', '').replace('.com', '').replace('.org', '').replace('.net', '')
+                    source_name = source_name.title()
+                    sources.append(f"- [{source_name}]({url})")
+                except:
+                    sources.append(f"- [Source]({url})")
+            
+            if sources:
+                content += "\n\n**Sources:**\n" + "\n".join(sources)
+        
+        return content
+
     async def run(self, query: str, session_id: str) -> str:
         """
         Multi-step chat with unified context management. Handles tool calls via MCP and returns the final assistant message.
@@ -135,11 +191,18 @@ class MistralMCPChatAgent(BaseAgent):
                     print(f"Tool arguments: {tool_call.function.arguments}")
                     tool_name = tool_call.function.name
                     tool_args = json.loads(tool_call.function.arguments)
-                    tool_args["session_id"] = session_id
+                    
+                    # Add session_id for tools that need it
+                    if tool_name not in ['smart_web_search']:  # smart_web_search doesn't need session_id
+                        tool_args["session_id"] = session_id
 
                     # Enhanced error handling for tool calls
                     try:
-                        result = await self.session.call_tool(tool_name, tool_args)
+                        # Route fetch tools to fetch server, others to main server
+                        if tool_name in ['fetch'] and self.fetch_session:
+                            result = await self.fetch_session.call_tool(tool_name, tool_args)
+                        else:
+                            result = await self.session.call_tool(tool_name, tool_args)
                         
                         # Convert the result to a string
                         content = result.content
@@ -194,12 +257,12 @@ class MistralMCPChatAgent(BaseAgent):
                 content = message.content
                 await self.context_manager.save_new_messages(session_id, new_messages_this_turn)
                 print(llm_context)
-                return content
+                return self._cleanup_source_references(content)
 
         # Fallback if max_steps is reached
         final_content = llm_context[-1].get("content", "Max steps reached.")
         await self.context_manager.save_new_messages(session_id, new_messages_this_turn)
-        return final_content
+        return self._cleanup_source_references(final_content)
 
     async def cleanup(self):
         await self.exit_stack.aclose()
