@@ -2,6 +2,10 @@ from mcp.server.fastmcp import FastMCP
 import mcp.types as types
 import os
 import json
+import httpx
+import re
+from urllib.parse import urljoin, urlparse
+from bs4 import BeautifulSoup
 
 mcp = FastMCP(
     "assistant-mcp-server",
@@ -124,11 +128,14 @@ async def get_next_task_tool(session_id: str) -> str:
 # --- MCP Prompts ---
 # Centralized prompt management using external files
 
+def get_prompt_dir_path() -> str:
+    """Get the full path to the prompt directory."""
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    return os.path.join(script_dir, "agents", "prompts")
+
 def load_prompt_from_file(prompt_name: str) -> str:
     """Load prompt content from external file."""
-    # Get the directory where this script is located
-    script_dir = os.path.dirname(os.path.abspath(__file__))
-    prompt_dir = os.path.join(script_dir, "agents", "prompts")
+    prompt_dir = get_prompt_dir_path()
     prompt_file = os.path.join(prompt_dir, f"{prompt_name}.md")
     
     if os.path.exists(prompt_file):
@@ -210,6 +217,22 @@ async def get_productivity_coach_prompt() -> types.GetPromptResult:
         messages=[types.PromptMessage(role="assistant", content=types.TextContent(type="text", text=content))]
     )
 
+@mcp.prompt("web_search_system")
+async def get_web_search_system_prompt() -> types.GetPromptResult:
+    """Get the web search system prompt for web research queries."""
+    content = load_prompt_from_file("web_search_system")
+    return types.GetPromptResult(
+        messages=[
+            types.PromptMessage(
+                role="assistant",
+                content=types.TextContent(
+                    type="text",
+                    text=content
+                )
+            )
+        ]
+    )
+
 # --- Prompt Management Tools ---
 # Tools to help manage and customize prompts
 
@@ -231,9 +254,7 @@ async def list_available_prompts() -> str:
     Returns:
         str: List of available prompt templates
     """
-    # Get the directory where this script is located
-    script_dir = os.path.dirname(os.path.abspath(__file__))
-    prompt_dir = os.path.join(script_dir, "agents", "prompts")
+    prompt_dir = get_prompt_dir_path()
     available_prompts = []
     
     if os.path.exists(prompt_dir):
@@ -268,9 +289,7 @@ async def update_prompt_template(prompt_name: str, new_content: str) -> str:
     Returns:
         str: Confirmation message
     """
-    # Get the directory where this script is located
-    script_dir = os.path.dirname(os.path.abspath(__file__))
-    prompt_dir = os.path.join(script_dir, "agents", "prompts")
+    prompt_dir = get_prompt_dir_path()
     os.makedirs(prompt_dir, exist_ok=True)
     
     prompt_file = os.path.join(prompt_dir, f"{prompt_name}.md")
@@ -308,8 +327,135 @@ async def create_prompt_template(prompt_name: str, content: str) -> str:
         return f"Prompt template '{prompt_name}' created successfully."
     except Exception as e:
         return f"Error creating prompt template: {str(e)}"
-    
 
+# --- Web Search Tools ---
+@mcp.tool()
+async def search_with_sources(query: str, num_results: int = 3, include_citations: bool = True) -> str:
+    """
+    Search the web and return results with proper source attribution and citations.
+    This is the primary web search tool that provides comprehensive results with guidance.
+    
+    IMPORTANT: Always use num_results=3-5 for comprehensive coverage. Don't rely on just one source.
+    
+    Args:
+        query: The search query (e.g., "latest AI news", "Python 3.12 features")
+        num_results: Number of search results to return (default 3, recommended 3-5, max 10)
+        include_citations: Whether to include formatted citations in the response
+    
+    Returns:
+        str: Search results with source information, guidance, and optional citations
+    """
+    try:
+        import httpx
+        from bs4 import BeautifulSoup
+        from datetime import datetime
+
+        # Limit results to reasonable number
+        num_results = min(num_results, 10)
+        
+        # Use DuckDuckGo for search
+        search_url = "https://html.duckduckgo.com/html/"
+        params = {"q": query}
+        
+        async with httpx.AsyncClient(timeout=10) as client:
+            response = await client.get(search_url, params=params)
+            response.raise_for_status()
+            
+            soup = BeautifulSoup(response.text, 'html.parser')
+            results = []
+            
+            # Try different selectors for DuckDuckGo results
+            selectors = [
+                'div.result',  # Old selector
+                'div.web-result',  # New selector
+                'div[data-testid="result"]',  # Another possible selector
+                'div.result__body',  # Alternative selector
+            ]
+            
+            for selector in selectors:
+                result_elements = soup.select(selector)
+                if result_elements:
+                    print(f"Found {len(result_elements)} results with selector: {selector}")
+                    break
+            
+            if not result_elements:
+                # Fallback: look for any div with links
+                result_elements = soup.find_all('div', class_=lambda x: x and 'result' in x.lower())
+            
+            for result in result_elements[:num_results]:
+                # Title and DuckDuckGo redirect URL
+                title_elem = result.find('a', class_='result__a')
+                snippet_elem = result.find('a', class_='result__snippet')
+                
+                if title_elem:
+                    title = title_elem.get_text(strip=True)
+                    ddg_url = title_elem.get('href', '')
+                    # Extract real URL from uddg param
+                    import urllib.parse
+                    real_url = None
+                    if 'uddg=' in ddg_url:
+                        real_url = urllib.parse.unquote(ddg_url.split('uddg=')[1].split('&')[0])
+                    elif ddg_url.startswith('http'):
+                        real_url = ddg_url
+                    else:
+                        real_url = None
+                    snippet = snippet_elem.get_text(strip=True) if snippet_elem else ""
+                    if real_url:
+                        results.append({
+                            "title": title,
+                            "url": real_url,
+                            "snippet": snippet,
+                            "source": "DuckDuckGo",
+                            "domain": urllib.parse.urlparse(real_url).netloc,
+                            "citation": f"[{title}]({real_url})"
+                        })
+            
+            if not results:
+                # Load error message from prompt file
+                error_template = load_prompt_from_file("search_error")
+                return json.dumps({
+                    "error": f"{error_template}: {query}",
+                    "suggestions": [
+                        "Try a different search term",
+                        "Check spelling", 
+                        "Use more specific keywords",
+                        "The search engine might be temporarily unavailable"
+                    ]
+                })
+            
+            # Build search results content
+            search_results_content = ""
+            for i, result in enumerate(results, 1):
+                search_results_content += f"### {i}. {result['title']}\n"
+                search_results_content += f"**URL**: {result['url']}\n"
+                search_results_content += f"**Domain**: {result['domain']}\n"
+                search_results_content += f"**Summary**: {result['snippet'][:200]}...\n\n"
+            
+            # Build citations content if requested
+            citations_content = ""
+            if include_citations:
+                citations_content += "## Sources\n\n"
+                for i, result in enumerate(results, 1):
+                    citations_content += f"{i}. [{result['title']}]({result['url']})\n"
+                    citations_content += f"   - **Domain**: {result['domain']}\n"
+                    if result['snippet']:
+                        citations_content += f"   - **Summary**: {result['snippet'][:150]}...\n"
+                    citations_content += "\n"
+                citations_content += f"\n*Generated on {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}*"
+            
+            # Load and format the comprehensive template
+            template = load_prompt_from_file("web_search_template")
+            output = template.format(
+                query=query,
+                count=len(results),
+                search_results=search_results_content,
+                citations=citations_content
+            )
+            
+            return output
+            
+    except Exception as e:
+        return f"Error in search with sources: {str(e)}"
 
 if __name__ == "__main__":
     mcp.run(transport='stdio')
