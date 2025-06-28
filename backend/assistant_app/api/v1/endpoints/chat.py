@@ -25,6 +25,7 @@ def get_chat_agent() -> MistralMCPChatAgent:
 @router.on_event("startup")
 async def startup_event():
     await agent.connect_to_server(MCP_SERVER_PATH)
+    await agent.connect_to_fetch_server()
 
 class ChatRequest(BaseModel):
     input: str

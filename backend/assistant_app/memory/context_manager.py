@@ -114,6 +114,8 @@ class HybridContextManager:
         # 6. Add the recent, sequential conversation history
         context.extend(recent_messages)
 
+        # Final validation: Ensure no malformed tool call sequences
+        context = self._validate_context_integrity(context)
         return context
 
     async def save_new_messages(self, session_id: str, new_messages: list[dict]):
@@ -185,4 +187,55 @@ class HybridContextManager:
                             return [msg] + messages
             # If not found, skip the orphaned tool message
             return messages[1:]
-        return messages 
+        return messages
+
+    def _validate_context_integrity(self, context: list[dict]) -> list[dict]:
+        """
+        Validates that the context doesn't contain malformed tool call sequences.
+        This is a final safety check to prevent function call mismatches.
+        """
+        validated_context = []
+        i = 0
+        
+        while i < len(context):
+            msg = context[i]
+            
+            if msg.get("role") == "assistant" and msg.get("tool_calls"):
+                # Check if we have the corresponding tool responses
+                tool_calls = msg["tool_calls"]
+                tool_call_ids = set(tc.get("id") for tc in tool_calls)
+                
+                # Look ahead for tool responses
+                responses_found = set()
+                j = i + 1
+                while j < len(context) and context[j].get("role") == "tool":
+                    tool_response = context[j]
+                    response_id = tool_response.get("tool_call_id")
+                    if response_id in tool_call_ids:
+                        responses_found.add(response_id)
+                    j += 1
+                
+                # Only include if we have all tool responses
+                if len(responses_found) == len(tool_call_ids):
+                    validated_context.append(msg)
+                    # Add all tool responses
+                    for k in range(i + 1, j):
+                        validated_context.append(context[k])
+                    i = j
+                else:
+                    # Skip this assistant message AND all following tool responses to avoid orphaned tools
+                    print(f"Warning: Skipping assistant message with incomplete tool responses")
+                    print(f"Expected {len(tool_call_ids)} responses, found {len(responses_found)}")
+                    # Skip to after all tool responses to avoid orphaned tools
+                    while j < len(context) and context[j].get("role") == "tool":
+                        j += 1
+                    i = j
+            elif msg.get("role") == "tool":
+                # Skip orphaned tool responses (they should only appear after assistant messages with tool_calls)
+                print(f"Warning: Skipping orphaned tool response")
+                i += 1
+            else:
+                validated_context.append(msg)
+                i += 1
+        
+        return validated_context 
