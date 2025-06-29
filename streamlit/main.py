@@ -7,6 +7,7 @@ import redis
 from backend.assistant_app.utils.redis_saver import save_to_redis, load_from_redis
 import json
 from auth_ui import show_auth_page, logout_user, validate_session
+from datetime import datetime
 
 load_dotenv()
 
@@ -142,6 +143,16 @@ st.markdown("""
         margin-top: 0 !important;
         padding-top: 0 !important;
     }
+    /* Sidebar chat session styling */
+    .css-1d391kg {
+        padding-top: 1rem !important;
+    }
+    /* Compact sidebar buttons for chat sessions */
+    .css-1d391kg .stButton > button {
+        padding: 0.25rem 0.5rem !important;
+        font-size: 0.8rem !important;
+        margin-bottom: 0.25rem !important;
+    }
     </style>
 """, unsafe_allow_html=True)
 
@@ -188,24 +199,24 @@ def check_oauth_auth():
         return False
 
 def show_chat():
-    """Display chat interface."""
+    """Display chat interface in main content area."""
     # Check OAuth authentication first
     if not check_oauth_auth():
         return
     
-    # Initialize chat session ID if not exists
-    if "chat_session_id" not in st.session_state:
-        st.session_state.chat_session_id = None
+    # Check if we have a current session
+    if not st.session_state.current_session_id:
+        st.info("👈 Start a new chat from the sidebar to begin!")
+        return
     
-    # New Chat button
-    if st.button("🆕 New Chat"):
-        st.session_state.chat_session_id = None
-        st.session_state.chat_history = []
-        st.session_state.message_limit = 5
-        st.rerun()
+    current_session = st.session_state.chat_sessions[st.session_state.current_session_id]
+    chat_history = current_session["history"]
+    
+    # Display current session info
+    st.markdown(f"### 💬 {current_session['name']}")
     
     # Clean message display controls
-    total_messages = len(st.session_state.chat_history)
+    total_messages = len(chat_history)
     
     # Message display controls
     if total_messages > 5:  # Only show controls if there are many messages
@@ -233,7 +244,7 @@ def show_chat():
         st.markdown('<div class="chat-container">', unsafe_allow_html=True)
         
         # Determine which messages to display
-        messages_to_display = st.session_state.chat_history[-st.session_state.message_limit:]
+        messages_to_display = chat_history[-st.session_state.message_limit:]
         
         # Display chat messages in normal order (oldest at top, newest at bottom)
         for sender, msg in messages_to_display:
@@ -259,7 +270,7 @@ def show_chat():
         try:
             print("Going to call /chat endpoint")
             # Append user message first for immediate feedback
-            st.session_state.chat_history.append(("You", user_input))
+            chat_history.append(("You", user_input))
 
             # Prepare request payload
             payload = {
@@ -268,8 +279,8 @@ def show_chat():
             }
             
             # Add chat session ID if we have one
-            if st.session_state.chat_session_id:
-                payload["chat_session_id"] = st.session_state.chat_session_id
+            if st.session_state.current_session_id:
+                payload["chat_session_id"] = st.session_state.current_session_id
 
             res = httpx.post(
                 f"{FASTAPI_URI}/chat",
@@ -282,14 +293,22 @@ def show_chat():
             
             # Store the chat session ID if provided
             if "chat_session_id" in response_data:
-                st.session_state.chat_session_id = response_data["chat_session_id"]
+                st.session_state.current_session_id = response_data["chat_session_id"]
 
-            st.session_state.chat_history.append(("Bot", bot_reply))
+            chat_history.append(("Bot", bot_reply))
+            
+            # Update session name with first user message if it's the default name
+            if current_session["name"].startswith("Chat ") and len(chat_history) == 2:
+                # Use first few words of the first user message as session name
+                first_words = user_input[:30].strip()
+                if len(first_words) > 0:
+                    current_session["name"] = first_words + ("..." if len(user_input) > 30 else "")
+            
             st.rerun() # Rerun to show the bot's reply
         except Exception as e:
             st.error(f"Error: {e}")
             # Optional: remove the user's message if the call failed
-            # st.session_state.chat_history.pop()
+            # chat_history.pop()
 
 def show_prompt_manager():
     """Display prompt management interface"""
@@ -479,6 +498,50 @@ def show_prompt_manager():
     # Close the CSS wrapper div
     st.markdown('</div>', unsafe_allow_html=True)
 
+def render_chat_sessions_panel():
+    """Render the chat sessions panel in the sidebar."""
+    st.markdown("### 💬 Chat Sessions")
+    
+    # New Chat button
+    if st.button("🆕 New Chat", key="new_chat_sidebar"):
+        # Create new session
+        new_session_id = f"session_{len(st.session_state.chat_sessions) + 1}"
+        st.session_state.chat_sessions[new_session_id] = {
+            "name": f"Chat {len(st.session_state.chat_sessions) + 1}",
+            "history": [],
+            "created_at": datetime.now().isoformat()
+        }
+        st.session_state.current_session_id = new_session_id
+        st.rerun()
+    
+    # Display chat sessions
+    if st.session_state.chat_sessions:
+        st.markdown("**Recent chats:**")
+        for session_id, session_data in st.session_state.chat_sessions.items():
+            # Determine if this is the current session
+            is_current = session_id == st.session_state.current_session_id
+            
+            # Create a button-like appearance for each session
+            col1, col2 = st.columns([4, 1])
+            with col1:
+                if st.button(
+                    session_data["name"], 
+                    key=f"session_{session_id}",
+                    use_container_width=True,
+                    type="primary" if is_current else "secondary"
+                ):
+                    st.session_state.current_session_id = session_id
+                    st.rerun()
+            with col2:
+                if st.button("🗑️", key=f"delete_{session_id}"):
+                    if session_id in st.session_state.chat_sessions:
+                        del st.session_state.chat_sessions[session_id]
+                        if st.session_state.current_session_id == session_id:
+                            st.session_state.current_session_id = None
+                        st.rerun()
+    else:
+        st.info("No chat sessions yet. Start a new chat!")
+
 # Main application logic
 def main():
     # Check if user is authenticated
@@ -494,23 +557,71 @@ def main():
             return
     
     # User is authenticated, show main interface
-    # Sidebar with user info and logout
+    # Sidebar with user info, logout, and navigation
     with st.sidebar:
         st.markdown(f"**Welcome, {st.session_state.user_email}!**")
         if st.button("Logout"):
             logout_user()
             return
+        
+        st.markdown("---")
+        
+        # Initialize chat sessions if not exists
+        if "chat_sessions" not in st.session_state:
+            st.session_state.chat_sessions = {}
+        if "current_session_id" not in st.session_state:
+            st.session_state.current_session_id = None
+        
+        # Initialize active view if not exists
+        if "active_view" not in st.session_state:
+            st.session_state.active_view = "Chat"
+        
+        # Navigation buttons with custom styling
+        st.markdown("### 🧭 Navigation")
+        
+        # Chat button
+        chat_selected = st.session_state.active_view == "Chat"
+        if st.button(
+            "💬 Chat",
+            key="nav_chat",
+            use_container_width=True,
+            type="primary" if chat_selected else "secondary"
+        ):
+            st.session_state.active_view = "Chat"
+            st.rerun()
+        
+        # Task Manager button
+        task_selected = st.session_state.active_view == "Task Manager"
+        if st.button(
+            "📋 Task Manager",
+            key="nav_task",
+            use_container_width=True,
+            type="primary" if task_selected else "secondary"
+        ):
+            st.session_state.active_view = "Task Manager"
+            st.rerun()
+        
+        # Prompt Manager button
+        prompt_selected = st.session_state.active_view == "Prompt Manager"
+        if st.button(
+            "🎭 Prompt Manager",
+            key="nav_prompt",
+            use_container_width=True,
+            type="primary" if prompt_selected else "secondary"
+        ):
+            st.session_state.active_view = "Prompt Manager"
+            st.rerun()
+        
+        # Show chat sessions panel only when Chat view is active
+        if st.session_state.active_view == "Chat":
+            render_chat_sessions_panel()
     
-    # Create tabs for different functionalities
-    tab1, tab2, tab3 = st.tabs(["Chat", "Task Manager", "Prompt Manager"])
-    
-    with tab1:
+    # Main content area - show different views based on selection
+    if st.session_state.active_view == "Chat":
         show_chat()
-    
-    with tab2:
+    elif st.session_state.active_view == "Task Manager":
         show_task_manager()
-    
-    with tab3:
+    elif st.session_state.active_view == "Prompt Manager":
         show_prompt_manager()
 
     # Save chat history after every message

@@ -85,22 +85,29 @@ st.markdown("""
     /* Make columns wider */
     [data-testid="column"] {
         min-width: 400px !important;
+    }
     </style>
 """, unsafe_allow_html=True)
 
 def show_task_manager():
     st.title("📋 Task Manager")
 
-    with st.sidebar:
-        st.header("Filters")
+    # Priority filter in main content area (moved from sidebar)
+    col1, col2 = st.columns([1, 3])
+    with col1:
+        st.markdown("**Filters:**")
+    with col2:
         priority_filter = st.selectbox(
             "Priority",
             options=["All"] + PRIORITY_ORDER,
             format_func=lambda x: get_priority_label(x) if isinstance(x, int) else x,
-            index=0
+            index=0,
+            label_visibility="collapsed"
         )
         if priority_filter == "All":
             priority_filter = None
+
+    st.markdown("---")
 
     # --- New Task Modal ---
     if 'show_new_task' not in st.session_state:

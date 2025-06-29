@@ -118,7 +118,7 @@ def logout_user():
             st.error(f"Logout error: {str(e)}")
     
     # Clear session state
-    for key in ["session_token", "user_email", "authenticated", "chat_history", "chat_session_id", "message_limit"]:
+    for key in ["session_token", "user_email", "authenticated", "chat_history", "chat_session_id", "message_limit", "chat_sessions", "current_session_id"]:
         if key in st.session_state:
             del st.session_state[key]
     
@@ -140,7 +140,7 @@ def validate_session():
             return response.json()
         else:
             # Session is invalid, clear it
-            for key in ["session_token", "user_email", "authenticated", "chat_history", "chat_session_id", "message_limit"]:
+            for key in ["session_token", "user_email", "authenticated", "chat_history", "chat_session_id", "message_limit", "chat_sessions", "current_session_id"]:
                 if key in st.session_state:
                     del st.session_state[key]
             return None
