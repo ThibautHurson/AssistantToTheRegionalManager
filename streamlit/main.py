@@ -4,7 +4,7 @@ import httpx
 from dotenv import load_dotenv
 from task_manager import show_task_manager
 import redis
-from backend.assistant_app.utils.redis_saver import save_to_redis, load_from_redis
+from backend.assistant_app.utils.redis_saver import save_to_redis, load_from_redis, save_chat_sessions_to_redis, save_current_session_to_redis
 import json
 from auth_ui import show_auth_page, logout_user, validate_session
 from datetime import datetime
@@ -304,6 +304,10 @@ def show_chat():
                 if len(first_words) > 0:
                     current_session["name"] = first_words + ("..." if len(user_input) > 30 else "")
             
+            # Save updated chat sessions to Redis
+            if st.session_state.user_email:
+                save_chat_sessions_to_redis(st.session_state.user_email, st.session_state.chat_sessions)
+            
             st.rerun() # Rerun to show the bot's reply
         except Exception as e:
             st.error(f"Error: {e}")
@@ -512,6 +516,12 @@ def render_chat_sessions_panel():
             "created_at": datetime.now().isoformat()
         }
         st.session_state.current_session_id = new_session_id
+        
+        # Save to Redis
+        if st.session_state.user_email:
+            save_chat_sessions_to_redis(st.session_state.user_email, st.session_state.chat_sessions)
+            save_current_session_to_redis(st.session_state.user_email, new_session_id)
+        
         st.rerun()
     
     # Display chat sessions
@@ -521,24 +531,89 @@ def render_chat_sessions_panel():
             # Determine if this is the current session
             is_current = session_id == st.session_state.current_session_id
             
-            # Create a button-like appearance for each session
-            col1, col2 = st.columns([4, 1])
-            with col1:
-                if st.button(
-                    session_data["name"], 
-                    key=f"session_{session_id}",
-                    use_container_width=True,
-                    type="primary" if is_current else "secondary"
-                ):
-                    st.session_state.current_session_id = session_id
-                    st.rerun()
-            with col2:
-                if st.button("🗑️", key=f"delete_{session_id}"):
-                    if session_id in st.session_state.chat_sessions:
-                        del st.session_state.chat_sessions[session_id]
-                        if st.session_state.current_session_id == session_id:
-                            st.session_state.current_session_id = None
+            # Check if this session is being edited
+            editing_key = f"editing_{session_id}"
+            if editing_key not in st.session_state:
+                st.session_state[editing_key] = False
+            
+            if st.session_state[editing_key]:
+                # Edit mode - show input field and save/cancel buttons
+                col1, col2 = st.columns([3, 1])
+                with col1:
+                    new_name = st.text_input(
+                        "New name:",
+                        value=session_data["name"],
+                        key=f"edit_name_{session_id}",
+                        label_visibility="collapsed"
+                    )
+                with col2:
+                    if st.button("💾", key=f"save_{session_id}", help="Save name"):
+                        if new_name.strip():
+                            st.session_state.chat_sessions[session_id]["name"] = new_name.strip()
+                            st.session_state[editing_key] = False
+                            
+                            # Save to Redis
+                            if st.session_state.user_email:
+                                save_chat_sessions_to_redis(st.session_state.user_email, st.session_state.chat_sessions)
+                            
+                            st.rerun()
+                        else:
+                            st.error("Name cannot be empty")
+                
+                col3, col4 = st.columns([1, 1])
+                with col3:
+                    if st.button("❌", key=f"cancel_{session_id}", help="Cancel"):
+                        st.session_state[editing_key] = False
                         st.rerun()
+                with col4:
+                    if st.button("🗑️", key=f"delete_{session_id}", help="Delete chat"):
+                        if session_id in st.session_state.chat_sessions:
+                            del st.session_state.chat_sessions[session_id]
+                            if st.session_state.current_session_id == session_id:
+                                st.session_state.current_session_id = None
+                            
+                            # Save updated sessions to Redis
+                            if st.session_state.user_email:
+                                save_chat_sessions_to_redis(st.session_state.user_email, st.session_state.chat_sessions)
+                                if st.session_state.current_session_id:
+                                    save_current_session_to_redis(st.session_state.user_email, st.session_state.current_session_id)
+                            
+                            st.rerun()
+            else:
+                # Normal mode - show session button and edit/delete buttons
+                col1, col2, col3 = st.columns([3, 1, 1])
+                with col1:
+                    if st.button(
+                        session_data["name"], 
+                        key=f"session_{session_id}",
+                        use_container_width=True,
+                        type="primary" if is_current else "secondary"
+                    ):
+                        st.session_state.current_session_id = session_id
+                        
+                        # Save current session to Redis
+                        if st.session_state.user_email:
+                            save_current_session_to_redis(st.session_state.user_email, session_id)
+                        
+                        st.rerun()
+                with col2:
+                    if st.button("✏️", key=f"edit_{session_id}", help="Edit name"):
+                        st.session_state[editing_key] = True
+                        st.rerun()
+                with col3:
+                    if st.button("🗑️", key=f"delete_{session_id}", help="Delete chat"):
+                        if session_id in st.session_state.chat_sessions:
+                            del st.session_state.chat_sessions[session_id]
+                            if st.session_state.current_session_id == session_id:
+                                st.session_state.current_session_id = None
+                            
+                            # Save updated sessions to Redis
+                            if st.session_state.user_email:
+                                save_chat_sessions_to_redis(st.session_state.user_email, st.session_state.chat_sessions)
+                                if st.session_state.current_session_id:
+                                    save_current_session_to_redis(st.session_state.user_email, st.session_state.current_session_id)
+                            
+                            st.rerun()
     else:
         st.info("No chat sessions yet. Start a new chat!")
 
