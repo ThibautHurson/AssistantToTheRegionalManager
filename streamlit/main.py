@@ -6,11 +6,11 @@ from task_manager import show_task_manager
 import redis
 from backend.assistant_app.utils.redis_saver import save_to_redis, load_from_redis
 import json
+from auth_ui import show_auth_page, logout_user, validate_session
 
 load_dotenv()
 
 FASTAPI_URI = os.getenv("FASTAPI_URI")
-SESSION_ID = os.getenv("SESSION_ID")
 REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379")
 
 redis_client = redis.Redis.from_url(REDIS_URL, decode_responses=True)
@@ -147,46 +147,63 @@ st.markdown("""
 
 st.title("📬 Gmail-Integrated Chatbot")
 
-# Session state
+# Initialize session state
 if "authenticated" not in st.session_state:
     st.session_state.authenticated = False
 
 if "chat_history" not in st.session_state:
-    history_json = load_from_redis(SESSION_ID, "chat_history")
-    if history_json:
-        st.session_state.chat_history = json.loads(history_json)
-    else:
-        st.session_state.chat_history = []
+    st.session_state.chat_history = []
 
 # Message display control
 if "message_limit" not in st.session_state:
     st.session_state.message_limit = 5  # Default to show last 5 messages
 
-def check_auth():
-    """Check if user is authenticated with Google"""
+def check_oauth_auth():
+    """Check if user has OAuth authentication for Gmail"""
+    if not st.session_state.authenticated or "session_token" not in st.session_state:
+        return False
+    
     try:
         auth_response = httpx.get(
             f"{FASTAPI_URI}/authorize",
-            params={"session_id": SESSION_ID},
-            verify=False  # Only for testing, remove in production
+            params={"session_token": st.session_state.session_token},
+            verify=False
         )
         auth_response.raise_for_status()
         auth_data = auth_response.json()
         
         if "auth_url" in auth_data:
-            st.markdown(f"Please complete the Google authentication process by visiting this URL: [Click here to authenticate]({auth_data['auth_url']})")
-            st.stop()
+            st.markdown("### 🔗 Gmail Authentication Required")
+            st.markdown("To use Gmail features, please authenticate with Google:")
+            st.markdown(f"[Click here to authenticate with Google]({auth_data['auth_url']})")
+            st.markdown("After authentication, you'll be redirected back to the app.")
+            return False
         elif "error" in auth_data:
             st.error(f"Authentication error: {auth_data['error']}")
-            st.stop()
+            return False
         else:
-            st.session_state.authenticated = True
+            return True
     except httpx.HTTPError as e:
         st.error(f"Error: {str(e)}")
-        st.stop()
+        return False
 
-# 2. Display chat UI
 def show_chat():
+    """Display chat interface."""
+    # Check OAuth authentication first
+    if not check_oauth_auth():
+        return
+    
+    # Initialize chat session ID if not exists
+    if "chat_session_id" not in st.session_state:
+        st.session_state.chat_session_id = None
+    
+    # New Chat button
+    if st.button("🆕 New Chat"):
+        st.session_state.chat_session_id = None
+        st.session_state.chat_history = []
+        st.session_state.message_limit = 5
+        st.rerun()
+    
     # Clean message display controls
     total_messages = len(st.session_state.chat_history)
     
@@ -237,20 +254,35 @@ def show_chat():
             height=100,
         )
         send_clicked = st.form_submit_button("Send")
-    print(send_clicked, user_input)
+    
     if send_clicked and user_input:
         try:
             print("Going to call /chat endpoint")
             # Append user message first for immediate feedback
             st.session_state.chat_history.append(("You", user_input))
 
+            # Prepare request payload
+            payload = {
+                "session_token": st.session_state.session_token, 
+                "input": user_input
+            }
+            
+            # Add chat session ID if we have one
+            if st.session_state.chat_session_id:
+                payload["chat_session_id"] = st.session_state.chat_session_id
+
             res = httpx.post(
                 f"{FASTAPI_URI}/chat",
-                json={"session_id": SESSION_ID, "input": user_input},
+                json=payload,
                 timeout=120
             )
             res.raise_for_status()
-            bot_reply = res.json()["response"]
+            response_data = res.json()
+            bot_reply = response_data["response"]
+            
+            # Store the chat session ID if provided
+            if "chat_session_id" in response_data:
+                st.session_state.chat_session_id = response_data["chat_session_id"]
 
             st.session_state.chat_history.append(("Bot", bot_reply))
             st.rerun() # Rerun to show the bot's reply
@@ -447,11 +479,28 @@ def show_prompt_manager():
     # Close the CSS wrapper div
     st.markdown('</div>', unsafe_allow_html=True)
 
-# Entry point
-if not st.session_state.authenticated:
-    check_auth()
-
-if st.session_state.authenticated:
+# Main application logic
+def main():
+    # Check if user is authenticated
+    if not st.session_state.authenticated:
+        # Validate existing session if available
+        user_info = validate_session()
+        if user_info:
+            st.session_state.authenticated = True
+            st.session_state.user_email = user_info.get("email")
+        else:
+            # Show authentication page
+            show_auth_page()
+            return
+    
+    # User is authenticated, show main interface
+    # Sidebar with user info and logout
+    with st.sidebar:
+        st.markdown(f"**Welcome, {st.session_state.user_email}!**")
+        if st.button("Logout"):
+            logout_user()
+            return
+    
     # Create tabs for different functionalities
     tab1, tab2, tab3 = st.tabs(["Chat", "Task Manager", "Prompt Manager"])
     
@@ -465,4 +514,8 @@ if st.session_state.authenticated:
         show_prompt_manager()
 
     # Save chat history after every message
-    save_to_redis(SESSION_ID, "chat_history", json.dumps(st.session_state.chat_history))
+    if st.session_state.chat_history:
+        save_to_redis(st.session_state.user_email, "chat_history", json.dumps(st.session_state.chat_history))
+
+if __name__ == "__main__":
+    main()

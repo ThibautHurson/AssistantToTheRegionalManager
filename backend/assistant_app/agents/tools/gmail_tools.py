@@ -51,18 +51,18 @@ async def _search_gmail(service, query: str):
     return json.dumps(messages_payload)
 
 
-async def search_gmail(query: str, session_id: str):
+async def search_gmail(query: str, user_email: str):
     """Search Gmail messages with retry logic."""
     from backend.assistant_app.api_integration.google_token_store import load_credentials
     from googleapiclient.discovery import build
 
-    creds = load_credentials(session_id)
+    creds = load_credentials(user_email)
     service = build("gmail", "v1", credentials=creds)
 
     return await _search_gmail(service, query)
 
 
-async def send_gmail(to: str, subject: str, body: str, session_id: str):
+async def send_gmail(to: str, subject: str, body: str, user_email: str):
     """
     Send an email using Gmail.
     Args:
@@ -73,7 +73,7 @@ async def send_gmail(to: str, subject: str, body: str, session_id: str):
     from backend.assistant_app.api_integration.google_token_store import load_credentials
     from googleapiclient.discovery import build
 
-    creds = load_credentials(session_id)
+    creds = load_credentials(user_email)
     service = build("gmail", "v1", credentials=creds)
 
     message = MIMEText(body)
@@ -86,7 +86,7 @@ async def send_gmail(to: str, subject: str, body: str, session_id: str):
     return f"Email sent to {to} with subject '{subject}'. View: https://mail.google.com/mail/u/0/#inbox/{sent_message.get('id')}"
 
 
-async def reply_to_gmail(message_id: str, body: str, session_id: str):
+async def reply_to_gmail(message_id: str, body: str, user_email: str):
     """
     Reply to an email using Gmail.
     Args:
@@ -99,7 +99,7 @@ async def reply_to_gmail(message_id: str, body: str, session_id: str):
     from backend.assistant_app.api_integration.google_token_store import load_credentials
     from googleapiclient.discovery import build
 
-    creds = load_credentials(session_id)
+    creds = load_credentials(user_email)
     service = build("gmail", "v1", credentials=creds)
 
     try:

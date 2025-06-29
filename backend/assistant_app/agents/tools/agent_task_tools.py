@@ -2,7 +2,7 @@ from typing import Optional
 from datetime import datetime
 from pydantic import BaseModel
 
-from backend.assistant_app.models.task_manager import get_task_manager
+from backend.assistant_app.models.task_manager import TaskManager
 
 class TaskInput(BaseModel):
     title: str
@@ -12,12 +12,12 @@ class TaskInput(BaseModel):
     status: str = "pending"
 
 
-def add_task(session_id: str, title: str, description: Optional[str] = None, 
+def add_task(user_email: str, title: str, description: Optional[str] = None, 
              due_date: Optional[datetime] = None, priority: int = 1) -> str:
     """Add a new task to the task manager.
     
     Args:
-        session_id: The user's session ID
+        user_email: The user's email address
         title: The title of the task
         description: Optional description of the task
         due_date: Optional due date for the task
@@ -26,7 +26,7 @@ def add_task(session_id: str, title: str, description: Optional[str] = None,
     Returns:
         str: A message indicating the task was added successfully
     """
-    task_manager = get_task_manager(session_id)
+    task_manager = TaskManager(user_email)
     task = task_manager.add_task(
         title=title,
         description=description,
@@ -36,52 +36,52 @@ def add_task(session_id: str, title: str, description: Optional[str] = None,
     return f"Task '{task.title}' added successfully with ID: {task.id}"
 
 
-def delete_task(session_id: str, task_id: str) -> str:
+def delete_task(user_email: str, task_id: str) -> str:
     """Delete a task from the task manager.
     
     Args:
-        session_id: The user's session ID
+        user_email: The user's email address
         task_id: The ID of the task to delete
     
     Returns:
         str: A message indicating the task was deleted successfully
     """
-    task_manager = get_task_manager(session_id)
+    task_manager = TaskManager(user_email)
     if task_manager.delete_task(task_id):
         return f"Task {task_id} deleted successfully"
     return f"Task {task_id} not found"
 
 
-def update_task(session_id: str, task_id: str, **kwargs) -> str:
+def update_task(user_email: str, task_id: str, **kwargs) -> str:
     """Update a task in the task manager.
     
     Args:
-        session_id: The user's session ID
+        user_email: The user's email address
         task_id: The ID of the task to update
         **kwargs: Fields to update (title, description, due_date, priority, status)
     
     Returns:
         str: A message indicating the task was updated successfully
     """
-    task_manager = get_task_manager(session_id)
+    task_manager = TaskManager(user_email)
     updated_task = task_manager.update_task(task_id, **kwargs)
     if updated_task:
         return f"Task '{updated_task.title}' updated successfully"
     return f"Task {task_id} not found"
 
 
-def list_tasks(session_id: str, status: Optional[str] = None, priority: Optional[int] = None) -> str:
+def list_tasks(user_email: str, status: Optional[str] = None, priority: Optional[int] = None) -> str:
     """List all tasks for the user.
     
     Args:
-        session_id: The user's session ID
+        user_email: The user's email address
         status: Optional status filter
         priority: Optional priority filter (1-5)
     
     Returns:
         str: A formatted list of tasks
     """
-    task_manager = get_task_manager(session_id)
+    task_manager = TaskManager(user_email)
     tasks = task_manager.get_tasks(status=status, priority=priority)
     
     if not tasks:
@@ -100,16 +100,16 @@ def list_tasks(session_id: str, status: Optional[str] = None, priority: Optional
     return result
 
 
-def get_next_task(session_id: str) -> str:
+def get_next_task(user_email: str) -> str:
     """Get the next task based on priority and due date.
     
     Args:
-        session_id: The user's session ID
+        user_email: The user's email address
     
     Returns:
         str: Information about the next task
     """
-    task_manager = get_task_manager(session_id)
+    task_manager = TaskManager(user_email)
     next_task = task_manager.get_next_task()
     
     if not next_task:

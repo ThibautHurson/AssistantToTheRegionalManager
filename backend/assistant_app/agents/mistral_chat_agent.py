@@ -142,10 +142,19 @@ class MistralMCPChatAgent(BaseAgent):
         
         return content
 
-    async def run(self, query: str, session_id: str) -> str:
+    async def run(self, query: str, session_id: str, user_email: str = None) -> str:
         """
         Multi-step chat with unified context management. Handles tool calls via MCP and returns the final assistant message.
+        
+        Args:
+            query: The user's input query
+            session_id: Unique session identifier for context management
+            user_email: User's email address for tool calls (optional, defaults to session_id for backward compatibility)
         """
+        # Use session_id as user_email if not provided (backward compatibility)
+        if user_email is None:
+            user_email = session_id
+            
         # Get the complete context including dynamic system prompt
         llm_context = await self.context_manager.get_context(session_id, user_query=query)
         
@@ -157,11 +166,11 @@ class MistralMCPChatAgent(BaseAgent):
         for tool in self.mcp_tools:
             # Deep copy to avoid mutating the original schema
             params = copy.deepcopy(tool.inputSchema)
-            # Agent filters the schemas to remove session_id before sending to LLM
-            if "properties" in params and "session_id" in params["properties"]:
-                del params["properties"]["session_id"]
-            if "required" in params and "session_id" in params["required"]:
-                params["required"] = [r for r in params["required"] if r != "session_id"]
+            # Agent filters the schemas to remove user_email before sending to LLM
+            if "properties" in params and "user_email" in params["properties"]:
+                del params["properties"]["user_email"]
+            if "required" in params and "user_email" in params["required"]:
+                params["required"] = [r for r in params["required"] if r != "user_email"]
             tool_schemas.append({
                 "type": "function",
                 "function": {
@@ -192,9 +201,9 @@ class MistralMCPChatAgent(BaseAgent):
                     tool_name = tool_call.function.name
                     tool_args = json.loads(tool_call.function.arguments)
                     
-                    # Add session_id for tools that need it
-                    if tool_name not in ['smart_web_search']:  # smart_web_search doesn't need session_id
-                        tool_args["session_id"] = session_id
+                    # Add user_email for tools that need it
+                    if tool_name not in ['smart_web_search', 'search_with_sources']:  # Web search tools don't need user_email
+                        tool_args["user_email"] = user_email
 
                     # Enhanced error handling for tool calls
                     try:

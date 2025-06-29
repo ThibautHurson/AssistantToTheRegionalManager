@@ -2,9 +2,11 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 import json
 import os
+import uuid
 
 from backend.assistant_app.agents.mistral_chat_agent import MistralMCPChatAgent
 from backend.assistant_app.api_integration.google_token_store import load_credentials
+from backend.assistant_app.services.auth_service import auth_service
 
 with open("backend/assistant_app/configs/chat_config.json") as f:
     config = json.load(f)
@@ -29,7 +31,8 @@ async def startup_event():
 
 class ChatRequest(BaseModel):
     input: str
-    session_id: str
+    session_token: str
+    chat_session_id: str = None  # Optional chat session ID for multi-chat support
 
 @router.post("/chat")
 async def chat(
@@ -49,17 +52,28 @@ async def chat(
     """
     print("Hit the chat endpoint")
     
-    # Check if user is authenticated
-    creds = load_credentials(payload.session_id)
+    # Validate session and get user
+    user = auth_service.validate_session(payload.session_token)
+    if not user:
+        raise HTTPException(
+            status_code=401,
+            detail="Invalid or expired session. Please log in again."
+        )
+    
+    # Check if user has OAuth authentication for Gmail
+    creds = load_credentials(user.email)
     if not creds or not creds.valid:
         raise HTTPException(
             status_code=401,
-            detail="User not authenticated. Please complete the Google authentication process."
+            detail="Gmail not authenticated. Please complete the Google OAuth process."
         )
     
+    # Generate or use provided chat session ID
+    chat_session_id = payload.chat_session_id or f"{user.email}_{str(uuid.uuid4())[:8]}"
+    
     try:
-        response = await chat_agent.run(payload.input, payload.session_id)
-        return {"response": response}
+        response = await chat_agent.run(payload.input, chat_session_id, user.email)
+        return {"response": response, "chat_session_id": chat_session_id}
     except Exception as e:
         print(f"Error in chat endpoint: {e}")
         import traceback

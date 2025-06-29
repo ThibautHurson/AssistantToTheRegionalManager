@@ -10,7 +10,6 @@ load_dotenv()
 
 # Configuration
 FASTAPI_URI = os.getenv("FASTAPI_URI", "http://localhost:8000")
-SESSION_ID = os.getenv("SESSION_ID")
 
 PRIORITY_LABELS = {0: "🔴 High", 1: "🟠 Medium", 2: "🟡 Low", 3: "🔵 Lowest"}
 PRIORITY_ORDER = [0, 1, 2, 3]
@@ -133,7 +132,7 @@ def show_task_manager():
         st.rerun()
 
     # --- Fetch Tasks ---
-    params = {"session_id": SESSION_ID}
+    params = {"session_id": st.session_state.session_token}
     if priority_filter is not None:
         params["priority"] = priority_filter
     try:
@@ -217,7 +216,7 @@ def show_task_manager():
                                             "priority": new_priority,
                                             "status": new_status
                                         },
-                                        params={"session_id": SESSION_ID},
+                                        params={"session_id": st.session_state.session_token},
                                         verify=False
                                     )
                                     response.raise_for_status()
@@ -239,7 +238,7 @@ def show_task_manager():
                             try:
                                 response = httpx.delete(
                                     f"{FASTAPI_URI}/tasks/{task['id']}",
-                                    params={"session_id": SESSION_ID},
+                                    params={"session_id": st.session_state.session_token},
                                     verify=False
                                 )
                                 response.raise_for_status()
@@ -276,7 +275,7 @@ def show_task_manager():
                                 "priority": priority,
                                 "status": st.session_state['new_task_status']
                             },
-                            params={"session_id": SESSION_ID},
+                            params={"session_id": st.session_state.session_token},
                             verify=False
                         )
                         response.raise_for_status()
@@ -305,7 +304,7 @@ def show_task_manager():
                 try:
                     response = httpx.delete(
                         f"{FASTAPI_URI}/tasks/{task['id']}",
-                        params={"session_id": SESSION_ID},
+                        params={"session_id": st.session_state.session_token},
                         verify=False
                     )
                     response.raise_for_status()

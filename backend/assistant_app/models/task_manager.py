@@ -45,8 +45,8 @@ class Task:
         }
 
 class TaskManager:
-    def __init__(self, session_id: str):
-        self.user_id = session_id  # Using session_id as user_id
+    def __init__(self, user_email: str):
+        self.user_email = user_email  # Using user email as user_id
 
     def add_task(self, title: str, description: Optional[str] = None, 
                  due_date: Optional[datetime] = None, priority: int = 1, msg_id: str = None) -> Task:
@@ -58,7 +58,7 @@ class TaskManager:
             description=description,
             due_date=due_date,
             priority=priority,
-            user_id=self.user_id
+            user_id=self.user_email
         )
         db.add(task)
         db.commit()
@@ -67,7 +67,7 @@ class TaskManager:
 
     def get_tasks(self, status: Optional[str] = None, priority: Optional[int] = None) -> List[Task]:
         db = next(get_db())
-        query = db.query(TaskModel).filter(TaskModel.user_id == self.user_id)
+        query = db.query(TaskModel).filter(TaskModel.user_id == self.user_email)
         
         if status:
             query = query.filter(TaskModel.status == status)
@@ -84,7 +84,7 @@ class TaskManager:
         db = next(get_db())
         task = db.query(TaskModel).filter(
             TaskModel.id == task_id,
-            TaskModel.user_id == self.user_id
+            TaskModel.user_id == self.user_email
         ).first()
         
         if not task:
@@ -102,7 +102,7 @@ class TaskManager:
         db = next(get_db())
         result = db.query(TaskModel).filter(
             TaskModel.id == task_id,
-            TaskModel.user_id == self.user_id
+            TaskModel.user_id == self.user_email
         ).delete()
         db.commit()
         return result > 0
@@ -112,7 +112,7 @@ class TaskManager:
         db = next(get_db())
         task = db.query(TaskModel)\
             .filter(
-                TaskModel.user_id == self.user_id,
+                TaskModel.user_id == self.user_email,
                 TaskModel.status == 'pending'
             )\
             .order_by(desc(TaskModel.priority))\
