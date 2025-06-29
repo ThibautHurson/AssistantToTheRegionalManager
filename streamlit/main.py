@@ -8,6 +8,7 @@ from backend.assistant_app.utils.redis_saver import save_to_redis, load_from_red
 import json
 from auth_ui import show_auth_page, logout_user, validate_session
 from datetime import datetime
+import uuid
 
 load_dotenv()
 
@@ -281,6 +282,7 @@ def show_chat():
             # Add chat session ID if we have one
             if st.session_state.current_session_id:
                 payload["chat_session_id"] = st.session_state.current_session_id
+                print(f"Sending chat_session_id: {st.session_state.current_session_id}")
 
             res = httpx.post(
                 f"{FASTAPI_URI}/chat",
@@ -508,8 +510,8 @@ def render_chat_sessions_panel():
     
     # New Chat button
     if st.button("🆕 New Chat", key="new_chat_sidebar"):
-        # Create new session
-        new_session_id = f"session_{len(st.session_state.chat_sessions) + 1}"
+        # Create new session with unique ID
+        new_session_id = f"session_{uuid.uuid4().hex[:8]}"
         st.session_state.chat_sessions[new_session_id] = {
             "name": f"Chat {len(st.session_state.chat_sessions) + 1}",
             "history": [],

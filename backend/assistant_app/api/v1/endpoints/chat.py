@@ -71,7 +71,11 @@ async def chat(
     # Generate or use provided chat session ID
     chat_session_id = payload.chat_session_id or f"{user.email}_{str(uuid.uuid4())[:8]}"
     
+    print(f"Using chat_session_id: {chat_session_id}")
+    print(f"User email: {user.email}")
+    
     try:
+        # Use the chat_session_id as the session_id for the LLM to ensure separate conversation histories
         response = await chat_agent.run(payload.input, chat_session_id, user.email)
         return {"response": response, "chat_session_id": chat_session_id}
     except Exception as e:

@@ -12,11 +12,14 @@ class RedisHistoryStore:
         """
         Retrieves the last n_messages from the conversation history list.
         """
+        print(f"Getting history for Redis key: {session_id}, n_messages: {n_messages}")
         # LRANGE session_id -n -1 fetches the last n elements.
         raw_messages = self.redis.lrange(session_id, -n_messages, -1)
         if not raw_messages:
+            print(f"No messages found for Redis key: {session_id}")
             return []
         
+        print(f"Found {len(raw_messages)} messages for Redis key: {session_id}")
         # Messages are stored as JSON strings, so we need to decode them.
         return [json.loads(msg) for msg in raw_messages]
 
@@ -24,6 +27,7 @@ class RedisHistoryStore:
         """
         Appends a list of messages to the history list in Redis using RPUSH.
         """
+        print(f"Appending {len(messages)} messages to Redis key: {session_id}")
         # Using a pipeline is more efficient for multiple commands.
         pipe = self.redis.pipeline()
         for message in messages:
@@ -34,3 +38,4 @@ class RedisHistoryStore:
             pipe.expire(session_id, self.ttl)
             
         pipe.execute()
+        print(f"Successfully appended messages to Redis key: {session_id}")
