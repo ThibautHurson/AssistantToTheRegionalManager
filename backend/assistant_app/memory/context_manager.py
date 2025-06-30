@@ -79,6 +79,7 @@ class HybridContextManager:
         """
         Builds a complete hybrid context for the LLM including dynamic system prompt.
         """
+        print(f"Getting context for session_id: {session_id}")
         context = []
         
         # 1. Build and add dynamic system prompt first
@@ -97,6 +98,8 @@ class HybridContextManager:
         full_recent_history = self.history_store.get_history(session_id, self.short_term_memory_size * 3)
         recent_messages = self.history_store.get_history(session_id, self.short_term_memory_size)
         recent_messages = self._fix_tool_message_alignment(recent_messages, full_recent_history)
+        
+        print(f"Found {len(recent_messages)} recent messages for session {session_id}")
 
         # 5. Assemble the informational context for the 'assistant' to consider
         informational_context = (
@@ -122,6 +125,8 @@ class HybridContextManager:
         """
         Saves new messages and updates long-term memory structures.
         """
+        print(f"Saving {len(new_messages)} new messages for session_id: {session_id}")
+        
         # 1. Save new messages to Redis list (short-term memory)
         self.history_store.append_messages(session_id, new_messages)
         
