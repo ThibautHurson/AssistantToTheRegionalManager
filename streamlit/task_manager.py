@@ -10,7 +10,6 @@ load_dotenv()
 
 # Configuration
 FASTAPI_URI = os.getenv("FASTAPI_URI", "http://localhost:8000")
-SESSION_ID = os.getenv("SESSION_ID")
 
 PRIORITY_LABELS = {0: "🔴 High", 1: "🟠 Medium", 2: "🟡 Low", 3: "🔵 Lowest"}
 PRIORITY_ORDER = [0, 1, 2, 3]
@@ -86,22 +85,29 @@ st.markdown("""
     /* Make columns wider */
     [data-testid="column"] {
         min-width: 400px !important;
+    }
     </style>
 """, unsafe_allow_html=True)
 
 def show_task_manager():
     st.title("📋 Task Manager")
 
-    with st.sidebar:
-        st.header("Filters")
+    # Priority filter in main content area (moved from sidebar)
+    col1, col2 = st.columns([1, 3])
+    with col1:
+        st.markdown("**Filters:**")
+    with col2:
         priority_filter = st.selectbox(
             "Priority",
             options=["All"] + PRIORITY_ORDER,
             format_func=lambda x: get_priority_label(x) if isinstance(x, int) else x,
-            index=0
+            index=0,
+            label_visibility="collapsed"
         )
         if priority_filter == "All":
             priority_filter = None
+
+    st.markdown("---")
 
     # --- New Task Modal ---
     if 'show_new_task' not in st.session_state:
@@ -133,7 +139,7 @@ def show_task_manager():
         st.rerun()
 
     # --- Fetch Tasks ---
-    params = {"session_id": SESSION_ID}
+    params = {"session_id": st.session_state.session_token}
     if priority_filter is not None:
         params["priority"] = priority_filter
     try:
@@ -217,7 +223,7 @@ def show_task_manager():
                                             "priority": new_priority,
                                             "status": new_status
                                         },
-                                        params={"session_id": SESSION_ID},
+                                        params={"session_id": st.session_state.session_token},
                                         verify=False
                                     )
                                     response.raise_for_status()
@@ -239,7 +245,7 @@ def show_task_manager():
                             try:
                                 response = httpx.delete(
                                     f"{FASTAPI_URI}/tasks/{task['id']}",
-                                    params={"session_id": SESSION_ID},
+                                    params={"session_id": st.session_state.session_token},
                                     verify=False
                                 )
                                 response.raise_for_status()
@@ -276,7 +282,7 @@ def show_task_manager():
                                 "priority": priority,
                                 "status": st.session_state['new_task_status']
                             },
-                            params={"session_id": SESSION_ID},
+                            params={"session_id": st.session_state.session_token},
                             verify=False
                         )
                         response.raise_for_status()
@@ -305,7 +311,7 @@ def show_task_manager():
                 try:
                     response = httpx.delete(
                         f"{FASTAPI_URI}/tasks/{task['id']}",
-                        params={"session_id": SESSION_ID},
+                        params={"session_id": st.session_state.session_token},
                         verify=False
                     )
                     response.raise_for_status()

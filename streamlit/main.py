@@ -4,13 +4,15 @@ import httpx
 from dotenv import load_dotenv
 from task_manager import show_task_manager
 import redis
-from backend.assistant_app.utils.redis_saver import save_to_redis, load_from_redis
+from backend.assistant_app.utils.redis_saver import save_to_redis, load_from_redis, save_chat_sessions_to_redis, save_current_session_to_redis
 import json
+from auth_ui import show_auth_page, logout_user, validate_session
+from datetime import datetime
+import uuid
 
 load_dotenv()
 
 FASTAPI_URI = os.getenv("FASTAPI_URI")
-SESSION_ID = os.getenv("SESSION_ID")
 REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379")
 
 redis_client = redis.Redis.from_url(REDIS_URL, decode_responses=True)
@@ -142,53 +144,80 @@ st.markdown("""
         margin-top: 0 !important;
         padding-top: 0 !important;
     }
+    /* Sidebar chat session styling */
+    .css-1d391kg {
+        padding-top: 1rem !important;
+    }
+    /* Compact sidebar buttons for chat sessions */
+    .css-1d391kg .stButton > button {
+        padding: 0.25rem 0.5rem !important;
+        font-size: 0.8rem !important;
+        margin-bottom: 0.25rem !important;
+    }
     </style>
 """, unsafe_allow_html=True)
 
 st.title("📬 Gmail-Integrated Chatbot")
 
-# Session state
+# Initialize session state
 if "authenticated" not in st.session_state:
     st.session_state.authenticated = False
 
 if "chat_history" not in st.session_state:
-    history_json = load_from_redis(SESSION_ID, "chat_history")
-    if history_json:
-        st.session_state.chat_history = json.loads(history_json)
-    else:
-        st.session_state.chat_history = []
+    st.session_state.chat_history = []
 
 # Message display control
 if "message_limit" not in st.session_state:
     st.session_state.message_limit = 5  # Default to show last 5 messages
 
-def check_auth():
-    """Check if user is authenticated with Google"""
+def check_oauth_auth():
+    """Check if user has OAuth authentication for Gmail"""
+    if not st.session_state.authenticated or "session_token" not in st.session_state:
+        return False
+    
     try:
         auth_response = httpx.get(
             f"{FASTAPI_URI}/authorize",
-            params={"session_id": SESSION_ID},
-            verify=False  # Only for testing, remove in production
+            params={"session_token": st.session_state.session_token},
+            verify=False
         )
         auth_response.raise_for_status()
         auth_data = auth_response.json()
         
         if "auth_url" in auth_data:
-            st.markdown(f"Please complete the Google authentication process by visiting this URL: [Click here to authenticate]({auth_data['auth_url']})")
-            st.stop()
+            st.markdown("### 🔗 Gmail Authentication Required")
+            st.markdown("To use Gmail features, please authenticate with Google:")
+            st.markdown(f"[Click here to authenticate with Google]({auth_data['auth_url']})")
+            st.markdown("After authentication, you'll be redirected back to the app.")
+            return False
         elif "error" in auth_data:
             st.error(f"Authentication error: {auth_data['error']}")
-            st.stop()
+            return False
         else:
-            st.session_state.authenticated = True
+            return True
     except httpx.HTTPError as e:
         st.error(f"Error: {str(e)}")
-        st.stop()
+        return False
 
-# 2. Display chat UI
 def show_chat():
+    """Display chat interface in main content area."""
+    # Check OAuth authentication first
+    if not check_oauth_auth():
+        return
+    
+    # Check if we have a current session
+    if not st.session_state.current_session_id:
+        st.info("👈 Start a new chat from the sidebar to begin!")
+        return
+    
+    current_session = st.session_state.chat_sessions[st.session_state.current_session_id]
+    chat_history = current_session["history"]
+    
+    # Display current session info
+    st.markdown(f"### 💬 {current_session['name']}")
+    
     # Clean message display controls
-    total_messages = len(st.session_state.chat_history)
+    total_messages = len(chat_history)
     
     # Message display controls
     if total_messages > 5:  # Only show controls if there are many messages
@@ -216,7 +245,7 @@ def show_chat():
         st.markdown('<div class="chat-container">', unsafe_allow_html=True)
         
         # Determine which messages to display
-        messages_to_display = st.session_state.chat_history[-st.session_state.message_limit:]
+        messages_to_display = chat_history[-st.session_state.message_limit:]
         
         # Display chat messages in normal order (oldest at top, newest at bottom)
         for sender, msg in messages_to_display:
@@ -237,27 +266,55 @@ def show_chat():
             height=100,
         )
         send_clicked = st.form_submit_button("Send")
-    print(send_clicked, user_input)
+    
     if send_clicked and user_input:
         try:
             print("Going to call /chat endpoint")
             # Append user message first for immediate feedback
-            st.session_state.chat_history.append(("You", user_input))
+            chat_history.append(("You", user_input))
+
+            # Prepare request payload
+            payload = {
+                "session_token": st.session_state.session_token, 
+                "input": user_input
+            }
+            
+            # Add chat session ID if we have one
+            if st.session_state.current_session_id:
+                payload["chat_session_id"] = st.session_state.current_session_id
+                print(f"Sending chat_session_id: {st.session_state.current_session_id}")
 
             res = httpx.post(
                 f"{FASTAPI_URI}/chat",
-                json={"session_id": SESSION_ID, "input": user_input},
+                json=payload,
                 timeout=120
             )
             res.raise_for_status()
-            bot_reply = res.json()["response"]
+            response_data = res.json()
+            bot_reply = response_data["response"]
+            
+            # Store the chat session ID if provided
+            if "chat_session_id" in response_data:
+                st.session_state.current_session_id = response_data["chat_session_id"]
 
-            st.session_state.chat_history.append(("Bot", bot_reply))
+            chat_history.append(("Bot", bot_reply))
+            
+            # Update session name with first user message if it's the default name
+            if current_session["name"].startswith("Chat ") and len(chat_history) == 2:
+                # Use first few words of the first user message as session name
+                first_words = user_input[:30].strip()
+                if len(first_words) > 0:
+                    current_session["name"] = first_words + ("..." if len(user_input) > 30 else "")
+            
+            # Save updated chat sessions to Redis
+            if st.session_state.user_email:
+                save_chat_sessions_to_redis(st.session_state.user_email, st.session_state.chat_sessions)
+            
             st.rerun() # Rerun to show the bot's reply
         except Exception as e:
             st.error(f"Error: {e}")
             # Optional: remove the user's message if the call failed
-            # st.session_state.chat_history.pop()
+            # chat_history.pop()
 
 def show_prompt_manager():
     """Display prompt management interface"""
@@ -447,22 +504,206 @@ def show_prompt_manager():
     # Close the CSS wrapper div
     st.markdown('</div>', unsafe_allow_html=True)
 
-# Entry point
-if not st.session_state.authenticated:
-    check_auth()
+def render_chat_sessions_panel():
+    """Render the chat sessions panel in the sidebar."""
+    st.markdown("### 💬 Chat Sessions")
+    
+    # New Chat button
+    if st.button("🆕 New Chat", key="new_chat_sidebar"):
+        # Create new session with unique ID
+        new_session_id = f"session_{uuid.uuid4().hex[:8]}"
+        st.session_state.chat_sessions[new_session_id] = {
+            "name": f"Chat {len(st.session_state.chat_sessions) + 1}",
+            "history": [],
+            "created_at": datetime.now().isoformat()
+        }
+        st.session_state.current_session_id = new_session_id
+        
+        # Save to Redis
+        if st.session_state.user_email:
+            save_chat_sessions_to_redis(st.session_state.user_email, st.session_state.chat_sessions)
+            save_current_session_to_redis(st.session_state.user_email, new_session_id)
+        
+        st.rerun()
+    
+    # Display chat sessions
+    if st.session_state.chat_sessions:
+        st.markdown("**Recent chats:**")
+        for session_id, session_data in st.session_state.chat_sessions.items():
+            # Determine if this is the current session
+            is_current = session_id == st.session_state.current_session_id
+            
+            # Check if this session is being edited
+            editing_key = f"editing_{session_id}"
+            if editing_key not in st.session_state:
+                st.session_state[editing_key] = False
+            
+            if st.session_state[editing_key]:
+                # Edit mode - show input field and save/cancel buttons
+                col1, col2 = st.columns([3, 1])
+                with col1:
+                    new_name = st.text_input(
+                        "New name:",
+                        value=session_data["name"],
+                        key=f"edit_name_{session_id}",
+                        label_visibility="collapsed"
+                    )
+                with col2:
+                    if st.button("💾", key=f"save_{session_id}", help="Save name"):
+                        if new_name.strip():
+                            st.session_state.chat_sessions[session_id]["name"] = new_name.strip()
+                            st.session_state[editing_key] = False
+                            
+                            # Save to Redis
+                            if st.session_state.user_email:
+                                save_chat_sessions_to_redis(st.session_state.user_email, st.session_state.chat_sessions)
+                            
+                            st.rerun()
+                        else:
+                            st.error("Name cannot be empty")
+                
+                col3, col4 = st.columns([1, 1])
+                with col3:
+                    if st.button("❌", key=f"cancel_{session_id}", help="Cancel"):
+                        st.session_state[editing_key] = False
+                        st.rerun()
+                with col4:
+                    if st.button("🗑️", key=f"delete_{session_id}", help="Delete chat"):
+                        if session_id in st.session_state.chat_sessions:
+                            del st.session_state.chat_sessions[session_id]
+                            if st.session_state.current_session_id == session_id:
+                                st.session_state.current_session_id = None
+                            
+                            # Save updated sessions to Redis
+                            if st.session_state.user_email:
+                                save_chat_sessions_to_redis(st.session_state.user_email, st.session_state.chat_sessions)
+                                if st.session_state.current_session_id:
+                                    save_current_session_to_redis(st.session_state.user_email, st.session_state.current_session_id)
+                            
+                            st.rerun()
+            else:
+                # Normal mode - show session button and edit/delete buttons
+                col1, col2, col3 = st.columns([3, 1, 1])
+                with col1:
+                    if st.button(
+                        session_data["name"], 
+                        key=f"session_{session_id}",
+                        use_container_width=True,
+                        type="primary" if is_current else "secondary"
+                    ):
+                        st.session_state.current_session_id = session_id
+                        
+                        # Save current session to Redis
+                        if st.session_state.user_email:
+                            save_current_session_to_redis(st.session_state.user_email, session_id)
+                        
+                        st.rerun()
+                with col2:
+                    if st.button("✏️", key=f"edit_{session_id}", help="Edit name"):
+                        st.session_state[editing_key] = True
+                        st.rerun()
+                with col3:
+                    if st.button("🗑️", key=f"delete_{session_id}", help="Delete chat"):
+                        if session_id in st.session_state.chat_sessions:
+                            del st.session_state.chat_sessions[session_id]
+                            if st.session_state.current_session_id == session_id:
+                                st.session_state.current_session_id = None
+                            
+                            # Save updated sessions to Redis
+                            if st.session_state.user_email:
+                                save_chat_sessions_to_redis(st.session_state.user_email, st.session_state.chat_sessions)
+                                if st.session_state.current_session_id:
+                                    save_current_session_to_redis(st.session_state.user_email, st.session_state.current_session_id)
+                            
+                            st.rerun()
+    else:
+        st.info("No chat sessions yet. Start a new chat!")
 
-if st.session_state.authenticated:
-    # Create tabs for different functionalities
-    tab1, tab2, tab3 = st.tabs(["Chat", "Task Manager", "Prompt Manager"])
+# Main application logic
+def main():
+    # Check if user is authenticated
+    if not st.session_state.authenticated:
+        # Validate existing session if available
+        user_info = validate_session()
+        if user_info:
+            st.session_state.authenticated = True
+            st.session_state.user_email = user_info.get("email")
+        else:
+            # Show authentication page
+            show_auth_page()
+            return
     
-    with tab1:
+    # User is authenticated, show main interface
+    # Sidebar with user info, logout, and navigation
+    with st.sidebar:
+        st.markdown(f"**Welcome, {st.session_state.user_email}!**")
+        if st.button("Logout"):
+            logout_user()
+            return
+        
+        st.markdown("---")
+        
+        # Initialize chat sessions if not exists
+        if "chat_sessions" not in st.session_state:
+            st.session_state.chat_sessions = {}
+        if "current_session_id" not in st.session_state:
+            st.session_state.current_session_id = None
+        
+        # Initialize active view if not exists
+        if "active_view" not in st.session_state:
+            st.session_state.active_view = "Chat"
+        
+        # Navigation buttons with custom styling
+        st.markdown("### 🧭 Navigation")
+        
+        # Chat button
+        chat_selected = st.session_state.active_view == "Chat"
+        if st.button(
+            "💬 Chat",
+            key="nav_chat",
+            use_container_width=True,
+            type="primary" if chat_selected else "secondary"
+        ):
+            st.session_state.active_view = "Chat"
+            st.rerun()
+        
+        # Task Manager button
+        task_selected = st.session_state.active_view == "Task Manager"
+        if st.button(
+            "📋 Task Manager",
+            key="nav_task",
+            use_container_width=True,
+            type="primary" if task_selected else "secondary"
+        ):
+            st.session_state.active_view = "Task Manager"
+            st.rerun()
+        
+        # Prompt Manager button
+        prompt_selected = st.session_state.active_view == "Prompt Manager"
+        if st.button(
+            "🎭 Prompt Manager",
+            key="nav_prompt",
+            use_container_width=True,
+            type="primary" if prompt_selected else "secondary"
+        ):
+            st.session_state.active_view = "Prompt Manager"
+            st.rerun()
+        
+        # Show chat sessions panel only when Chat view is active
+        if st.session_state.active_view == "Chat":
+            render_chat_sessions_panel()
+    
+    # Main content area - show different views based on selection
+    if st.session_state.active_view == "Chat":
         show_chat()
-    
-    with tab2:
+    elif st.session_state.active_view == "Task Manager":
         show_task_manager()
-    
-    with tab3:
+    elif st.session_state.active_view == "Prompt Manager":
         show_prompt_manager()
 
     # Save chat history after every message
-    save_to_redis(SESSION_ID, "chat_history", json.dumps(st.session_state.chat_history))
+    if st.session_state.chat_history:
+        save_to_redis(st.session_state.user_email, "chat_history", json.dumps(st.session_state.chat_history))
+
+if __name__ == "__main__":
+    main()

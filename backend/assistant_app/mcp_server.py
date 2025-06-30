@@ -16,7 +16,7 @@ mcp = FastMCP(
 from backend.assistant_app.agents.tools.gmail_tools import search_gmail, send_gmail, reply_to_gmail
 
 @mcp.tool()
-async def search_gmail_tool(query: str, session_id: str) -> str:
+async def search_gmail_tool(query: str, user_email: str) -> str:
     """
     Search Gmail messages for a given query string.
     Args:
@@ -24,11 +24,11 @@ async def search_gmail_tool(query: str, session_id: str) -> str:
     Returns:
         str: JSON-formatted list of matching messages with content and Gmail links.
     """
-    results = await search_gmail(query, session_id)
+    results = await search_gmail(query, user_email)
     return str(results)
 
 @mcp.tool()
-async def send_gmail_tool(to: str, subject: str, body: str, session_id: str) -> str:
+async def send_gmail_tool(to: str, subject: str, body: str, user_email: str) -> str:
     """
     Send an email using Gmail.
     Args:
@@ -38,11 +38,11 @@ async def send_gmail_tool(to: str, subject: str, body: str, session_id: str) -> 
     Returns:
         str: Confirmation message with a link to the sent email.
     """
-    result = await send_gmail(to, subject, body, session_id)
+    result = await send_gmail(to, subject, body, user_email)
     return str(result)
 
 @mcp.tool()
-async def reply_to_gmail_tool(message_id: str, body: str, session_id: str) -> str:
+async def reply_to_gmail_tool(message_id: str, body: str, user_email: str) -> str:
     """
     Reply to an existing email using Gmail.
     Args:
@@ -51,14 +51,14 @@ async def reply_to_gmail_tool(message_id: str, body: str, session_id: str) -> st
     Returns:
         str: Confirmation message with a link to the sent reply.
     """
-    result = await reply_to_gmail(message_id, body, session_id)
+    result = await reply_to_gmail(message_id, body, user_email)
     return str(result)
 
 # --- Agent Task Tools ---
 from backend.assistant_app.agents.tools.agent_task_tools import add_task, delete_task, update_task, list_tasks, get_next_task
 
 @mcp.tool()
-async def add_task_tool(session_id: str, title: str, description: str = None, due_date: str = None, priority: int = 1) -> str:
+async def add_task_tool(user_email: str, title: str, description: str = None, due_date: str = None, priority: int = 1) -> str:
     """
     Add a new task to the task manager.
     Args:
@@ -69,11 +69,11 @@ async def add_task_tool(session_id: str, title: str, description: str = None, du
     Returns:
         str: A message indicating the task was added successfully
     """
-    result = add_task(session_id, title, description, due_date, priority)
+    result = add_task(user_email, title, description, due_date, priority)
     return str(result)
 
 @mcp.tool()
-async def delete_task_tool(session_id: str, task_id: str) -> str:
+async def delete_task_tool(user_email: str, task_id: str) -> str:
     """
     Delete a task from the task manager.
     Args:
@@ -81,11 +81,11 @@ async def delete_task_tool(session_id: str, task_id: str) -> str:
     Returns:
         str: A message indicating the task was deleted successfully or not found
     """
-    result = delete_task(session_id, task_id)
+    result = delete_task(user_email, task_id)
     return str(result)
 
 @mcp.tool()
-async def update_task_tool(session_id: str, task_id: str, title: str = None, description: str = None, due_date: str = None, priority: int = None, status: str = None) -> str:
+async def update_task_tool(user_email: str, task_id: str, title: str = None, description: str = None, due_date: str = None, priority: int = None, status: str = None) -> str:
     """
     Update a task in the task manager.
     Args:
@@ -99,11 +99,11 @@ async def update_task_tool(session_id: str, task_id: str, title: str = None, des
         str: A message indicating the task was updated successfully or not found
     """
     kwargs = {k: v for k, v in {"title": title, "description": description, "due_date": due_date, "priority": priority, "status": status}.items() if v is not None}
-    result = update_task(session_id, task_id, **kwargs)
+    result = update_task(user_email, task_id, **kwargs)
     return str(result)
 
 @mcp.tool()
-async def list_tasks_tool(session_id: str, status: str = None, priority: int = None) -> str:
+async def list_tasks_tool(user_email: str, status: str = None, priority: int = None) -> str:
     """
     List all tasks for the user, optionally filtered by status or priority.
     Args:
@@ -112,17 +112,17 @@ async def list_tasks_tool(session_id: str, status: str = None, priority: int = N
     Returns:
         str: A formatted list of tasks
     """
-    result = list_tasks(session_id, status, priority)
+    result = list_tasks(user_email, status, priority)
     return str(result)
 
 @mcp.tool()
-async def get_next_task_tool(session_id: str) -> str:
+async def get_next_task_tool(user_email: str) -> str:
     """
     Get the next task based on priority and due date.
     Returns:
         str: Information about the next task or a message if none are pending
     """
-    result = get_next_task(session_id)
+    result = get_next_task(user_email)
     return str(result)
 
 # --- MCP Prompts ---

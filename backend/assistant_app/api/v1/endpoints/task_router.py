@@ -1,9 +1,10 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from typing import List, Optional
 from datetime import datetime
 from pydantic import BaseModel
 
-from backend.assistant_app.models.task_manager import TaskManager, get_task_manager
+from backend.assistant_app.models.task_manager import TaskManager
+from backend.assistant_app.services.auth_service import auth_service
 
 router = APIRouter()
 
@@ -36,11 +37,19 @@ class TaskResponse(TaskBase):
     class Config:
         from_attributes = True
 
+def get_task_manager(session_id: str = Query(..., description="Session ID for authentication")) -> TaskManager:
+    """Get task manager for authenticated user."""
+    user = auth_service.validate_session(session_id)
+    if not user:
+        raise HTTPException(status_code=401, detail="Invalid or expired session")
+    return TaskManager(user.email)
+
 @router.post("/tasks", response_model=TaskResponse)
 async def create_task(
     task: TaskCreate,
-    task_manager: TaskManager = Depends(get_task_manager)
+    session_id: str = Query(..., description="Session ID for authentication")
 ):
+    task_manager = get_task_manager(session_id)
     return task_manager.add_task(
         title=task.title,
         description=task.description,
@@ -50,24 +59,25 @@ async def create_task(
 
 @router.get("/tasks", response_model=List[TaskResponse])
 async def get_tasks(
-    status: Optional[str] = None,
-    priority: Optional[int] = None,
-    task_manager: TaskManager = Depends(get_task_manager)
+    session_id: str = Query(..., description="Session ID for authentication"),
+    status: Optional[str] = Query(None, description="Filter by status"),
+    priority: Optional[int] = Query(None, description="Filter by priority")
 ):
+    task_manager = get_task_manager(session_id)
     return task_manager.get_tasks(status=status, priority=priority)
 
 @router.get("/tasks/next", response_model=Optional[TaskResponse])
-async def get_next_task(
-    task_manager: TaskManager = Depends(get_task_manager)
-):
+async def get_next_task(session_id: str = Query(..., description="Session ID for authentication")):
+    task_manager = get_task_manager(session_id)
     return task_manager.get_next_task()
 
 @router.put("/tasks/{task_id}", response_model=TaskResponse)
 async def update_task(
     task_id: str,
     task: TaskUpdate,
-    task_manager: TaskManager = Depends(get_task_manager)
+    session_id: str = Query(..., description="Session ID for authentication")
 ):
+    task_manager = get_task_manager(session_id)
     updated_task = task_manager.update_task(
         task_id=task_id,
         **task.model_dump(exclude_unset=True)
@@ -79,8 +89,9 @@ async def update_task(
 @router.delete("/tasks/{task_id}")
 async def delete_task(
     task_id: str,
-    task_manager: TaskManager = Depends(get_task_manager)
+    session_id: str = Query(..., description="Session ID for authentication")
 ):
+    task_manager = get_task_manager(session_id)
     if not task_manager.delete_task(task_id):
         raise HTTPException(status_code=404, detail="Task not found")
     return {"status": "success"} 
