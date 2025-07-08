@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Request, HTTPException
 from fastapi.responses import RedirectResponse, JSONResponse
 from backend.assistant_app.api_integration.google_token_store import (
-    get_authorization_url, exchange_code_for_token, load_credentials
+    get_authorization_url, exchange_code_for_token, load_credentials, clear_credentials
 )
 from backend.assistant_app.services.auth_service import auth_service
 
@@ -78,3 +78,23 @@ def oauth2callback(request: Request):
         return JSONResponse({"message": "OAuth authentication successful"})
     else:
         return JSONResponse({"error": "OAuth authentication failed"}, status_code=400)
+
+@router.post("/oauth/clear-credentials")
+async def clear_user_credentials(session_token: str):
+    """Clear stored Google credentials for a user to force new OAuth flow."""
+    try:
+        # Validate session and get user
+        user = auth_service.validate_session(session_token)
+        if not user:
+            return JSONResponse(content={"error": "Invalid session token"}, status_code=401)
+        
+        # Clear credentials
+        success = clear_credentials(user.email)
+        if success:
+            return JSONResponse(content={"message": "Credentials cleared successfully. Please re-authenticate."})
+        else:
+            return JSONResponse(content={"error": "Failed to clear credentials"}, status_code=500)
+            
+    except Exception as e:
+        print(f"Error clearing credentials: {e}")
+        return JSONResponse(content={"error": str(e)}, status_code=500)

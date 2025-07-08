@@ -27,6 +27,30 @@ class HybridContextManager:
     def _get_summary_key(self, session_id: str) -> str:
         return f"summary:{session_id}"
 
+    def _extract_text_from_mcp_prompt(self, result) -> str:
+        """Extract clean text content from MCP prompt response."""
+        try:
+            # Handle GetPromptResult objects (MCP client response)
+            if hasattr(result, 'messages') and result.messages:
+                message = result.messages[0]
+                if hasattr(message, 'content'):
+                    content = message.content
+                    if hasattr(content, 'text'):
+                        return content.text
+                    elif isinstance(content, dict) and 'text' in content:
+                        return content['text']
+                    else:
+                        return str(content)
+            
+            # If result is already a string, return it directly
+            if isinstance(result, str):
+                return result
+                
+            return ""
+        except Exception as e:
+            print(f"Error extracting text from MCP prompt: {e}")
+            return ""
+
     async def build_dynamic_system_prompt(self, user_query: str = "") -> str:
         """Build a dynamic system prompt using MCP prompts and semantic selection."""
         base_prompt = ""
@@ -35,19 +59,25 @@ class HybridContextManager:
         if self.mcp_session:
             try:
                 result = await self.mcp_session.get_prompt("system_base")
-                if result.messages and len(result.messages) > 0:
-                    content = result.messages[0].content
-                    if hasattr(content, 'text'):
-                        base_prompt = content.text
-                    else:
-                        base_prompt = str(content)
-                else:
+                base_prompt = self._extract_text_from_mcp_prompt(result.messages[0].content)
+                if not base_prompt:
                     base_prompt = "You are an intelligent personal assistant that helps users manage their tasks and emails."
             except Exception as e:
                 print(f"Could not fetch system_base prompt: {e}")
                 base_prompt = "You are an intelligent personal assistant that helps users manage their tasks and emails."
         else:
             base_prompt = "You are an intelligent personal assistant that helps users manage their tasks and emails."
+        
+        # Add current datetime information to the base prompt
+        try:
+            from datetime import datetime
+            current_datetime = datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S UTC")
+            
+            datetime_info = f"\n\n**CURRENT DATETIME:** {current_datetime}\n\n"
+            
+            base_prompt += datetime_info
+        except Exception as e:
+            print(f"Could not add current datetime info: {e}")
         
         # Use semantic prompt selector to find relevant prompts
         contextual_prompts = []
@@ -58,16 +88,13 @@ class HybridContextManager:
                 use_keywords=False
             )
             
-            # Fetch selected prompts from MCP
+            # Fetch selected prompts from MCP and extract clean text content
             for prompt_name in selected_prompts:
                 try:
                     result = await self.mcp_session.get_prompt(prompt_name)
-                    if result.messages and len(result.messages) > 0:
-                        content = result.messages[0].content
-                        if hasattr(content, 'text'):
-                            contextual_prompts.append(content.text)
-                        else:
-                            contextual_prompts.append(str(content))
+                    prompt_text = self._extract_text_from_mcp_prompt(result.messages[0].content)
+                    if prompt_text:
+                        contextual_prompts.append(prompt_text)
                 except Exception as e:
                     print(f"Could not fetch {prompt_name} prompt: {e}")
         

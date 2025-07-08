@@ -40,7 +40,9 @@ SCOPES = [
     "openid",
     "https://www.googleapis.com/auth/userinfo.email",
     "https://www.googleapis.com/auth/gmail.modify",
-    "https://www.googleapis.com/auth/gmail.send"
+    "https://www.googleapis.com/auth/gmail.send",
+    "https://www.googleapis.com/auth/calendar.readonly",
+    "https://www.googleapis.com/auth/calendar.events"
 ]
 
 def load_client_config():
@@ -51,6 +53,23 @@ def load_client_config():
 
     with open(CLIENT_SECRET_FILE, 'r') as f:
         return json.load(f)
+
+def clear_credentials(user_email: str) -> bool:
+    """Clear stored credentials for a user to force new OAuth flow."""
+    try:
+        # Clear from Redis
+        redis_client.delete(f"google_creds:{user_email}")
+        
+        # Clear from file backup
+        file_path = f'google_setup/token_store/{user_email}.json'
+        if os.path.exists(file_path):
+            os.remove(file_path)
+            print(f"Cleared credentials for {user_email}")
+            return True
+    except Exception as e:
+        print(f"Error clearing credentials: {e}")
+        return False
+    return True
 
 def load_credentials(user_email: str) -> Optional[Credentials]:
     print("in load_credentials")
@@ -83,6 +102,10 @@ def load_credentials(user_email: str) -> Optional[Credentials]:
             setup_gmail_watch(user_email, creds)
         except Exception as e:
             print(f"Error refreshing token: {e}")
+            # If refresh fails due to scope issues, clear credentials to force new OAuth
+            if "invalid_scope" in str(e):
+                print("Scope mismatch detected, clearing credentials to force new OAuth")
+                clear_credentials(user_email)
             return None
     print("load_credentials Returning credentials")
     return creds if creds and creds.valid else None
@@ -132,11 +155,13 @@ def get_authorization_url(session_token: str) -> Tuple[Optional[str], Optional[F
         print("No client configuration found")
         raise FileNotFoundError("Client secret file not found or invalid")
 
-    # Create Flow instance with explicit redirect URI
+    # Create Flow instance with explicit redirect URI that includes session_token
+    redirect_uri_with_token = f"{REDIRECT_URI}?session_token={session_token}"
+    
     flow = Flow.from_client_config(
         client_config,
         scopes=SCOPES,
-        redirect_uri=REDIRECT_URI  # Use the environment variable
+        redirect_uri=redirect_uri_with_token
     )
 
     # Generate authorization URL
@@ -204,11 +229,13 @@ def exchange_code_for_token(code: str, state: str, session_token: str) -> Option
             print("No client configuration found")
             return None
 
-        # Create Flow instance with explicit redirect URI
+        # Create Flow instance with explicit redirect URI that includes session_token
+        redirect_uri_with_token = f"{REDIRECT_URI}?session_token={session_token}"
+        
         flow = Flow.from_client_config(
             client_config,
             scopes=SCOPES,
-            redirect_uri=REDIRECT_URI  # Use the environment variable
+            redirect_uri=redirect_uri_with_token
         )
 
         flow.fetch_token(code=code)

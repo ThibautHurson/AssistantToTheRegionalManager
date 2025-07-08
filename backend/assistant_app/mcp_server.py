@@ -6,10 +6,11 @@ import httpx
 import re
 from urllib.parse import urljoin, urlparse
 from bs4 import BeautifulSoup
+from typing import Optional, List
 
 mcp = FastMCP(
     "assistant-mcp-server",
-    description="Personal assistant server with Gmail and task management capabilities"
+    description="Personal assistant server with Gmail, task management, and calendar capabilities"
 )
 
 # --- Gmail Tools ---
@@ -125,6 +126,112 @@ async def get_next_task_tool(user_email: str) -> str:
     result = get_next_task(user_email)
     return str(result)
 
+# --- Google Calendar Tools ---
+from backend.assistant_app.agents.tools.calendar_tools import (
+    list_calendar_events, create_calendar_event, update_calendar_event, 
+    delete_calendar_event, search_calendar_events, get_calendar_list
+)
+
+@mcp.tool()
+async def list_calendar_events_tool(user_email: str, calendar_id: str = "primary", max_results: int = 10, 
+                                   time_min: str = None, time_max: str = None) -> str:
+    """
+    List calendar events for a user.
+    Args:
+        calendar_id: Calendar ID (default: "primary")
+        max_results: Maximum number of events to return (default: 10)
+        time_min: Start time in ISO format (default: now)
+        time_max: End time in ISO format (default: 7 days from now)
+    Returns:
+        str: JSON-formatted list of events
+    """
+    return list_calendar_events(user_email, calendar_id, max_results, time_min, time_max)
+
+@mcp.tool()
+async def create_calendar_event_tool(user_email: str, summary: str, start_time: str, end_time: str,
+                                    description: str = None, location: str = None,
+                                    attendees: str = None, calendar_id: str = "primary") -> str:
+    """
+    Create a new calendar event.
+    Args:
+        summary: Event title/summary
+        start_time: Start time in ISO format (e.g., "2024-01-15T10:00:00Z")
+        end_time: End time in ISO format (e.g., "2024-01-15T11:00:00Z")
+        description: Event description (optional)
+        location: Event location (optional)
+        attendees: Comma-separated list of attendee email addresses (optional)
+        calendar_id: Calendar ID (default: "primary")
+    Returns:
+        str: JSON response with event details or error message
+    """
+    # Parse attendees if provided
+    attendee_list = None
+    if attendees:
+        attendee_list = [email.strip() for email in attendees.split(',')]
+    
+    return create_calendar_event(user_email, summary, start_time, end_time, description, location, attendee_list, calendar_id)
+
+@mcp.tool()
+async def update_calendar_event_tool(user_email: str, event_id: str, summary: str = None,
+                                    start_time: str = None, end_time: str = None,
+                                    description: str = None, location: str = None,
+                                    attendees: str = None, calendar_id: str = "primary") -> str:
+    """
+    Update an existing calendar event.
+    Args:
+        event_id: The ID of the event to update
+        summary: New event title/summary (optional)
+        start_time: New start time in ISO format (optional)
+        end_time: New end time in ISO format (optional)
+        description: New event description (optional)
+        location: New event location (optional)
+        attendees: Comma-separated list of attendee email addresses (optional)
+        calendar_id: Calendar ID (default: "primary")
+    Returns:
+        str: JSON response with updated event details or error message
+    """
+    # Parse attendees if provided
+    attendee_list = None
+    if attendees:
+        attendee_list = [email.strip() for email in attendees.split(',')]
+    
+    return update_calendar_event(user_email, event_id, summary, start_time, end_time, description, location, attendee_list, calendar_id)
+
+@mcp.tool()
+async def delete_calendar_event_tool(user_email: str, event_id: str, calendar_id: str = "primary") -> str:
+    """
+    Delete a calendar event.
+    Args:
+        event_id: The ID of the event to delete
+        calendar_id: Calendar ID (default: "primary")
+    Returns:
+        str: JSON response with success or error message
+    """
+    return delete_calendar_event(user_email, event_id, calendar_id)
+
+@mcp.tool()
+async def search_calendar_events_tool(user_email: str, query: str, calendar_id: str = "primary", 
+                                     max_results: int = 10) -> str:
+    """
+    Search for calendar events using a text query.
+    Args:
+        query: Search query (e.g., "meeting", "lunch", "conference")
+        calendar_id: Calendar ID (default: "primary")
+        max_results: Maximum number of events to return (default: 10)
+    Returns:
+        str: JSON-formatted list of matching events
+    """
+    return search_calendar_events(user_email, query, calendar_id, max_results)
+
+@mcp.tool()
+async def get_calendar_list_tool(user_email: str) -> str:
+    """
+    Get list of available calendars for a user.
+    Returns:
+        str: JSON-formatted list of calendars
+    """
+    return get_calendar_list(user_email)
+
 # --- MCP Prompts ---
 # Centralized prompt management using external files
 
@@ -221,6 +328,22 @@ async def get_productivity_coach_prompt() -> types.GetPromptResult:
 async def get_web_search_system_prompt() -> types.GetPromptResult:
     """Get the web search system prompt for web research queries."""
     content = load_prompt_from_file("web_search_system")
+    return types.GetPromptResult(
+        messages=[
+            types.PromptMessage(
+                role="assistant",
+                content=types.TextContent(
+                    type="text",
+                    text=content
+                )
+            )
+        ]
+    )
+
+@mcp.prompt("calendar_assistant")
+async def get_calendar_assistant_prompt() -> types.GetPromptResult:
+    """Get the calendar assistant prompt for calendar management operations."""
+    content = load_prompt_from_file("calendar_assistant")
     return types.GetPromptResult(
         messages=[
             types.PromptMessage(

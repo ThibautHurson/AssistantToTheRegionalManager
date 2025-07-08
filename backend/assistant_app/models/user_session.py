@@ -15,4 +15,4 @@ class UserSession(Base):
     last_activity = Column(DateTime(timezone=True), server_default=func.now())
     
     # Relationship
-    user = relationship("User", backref="sessions") 
+    user = relationship("User", backref="sessions")

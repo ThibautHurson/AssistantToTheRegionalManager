@@ -37,7 +37,8 @@ class SemanticPromptSelector:
             "productivity_coach": "Time management, workflow optimization, efficiency tips, scheduling, productivity advice",
             "error_handling": "Error recovery, troubleshooting, problem solving, graceful failure handling",
             "conversation_context": "Maintaining conversation flow, context awareness, continuity in dialogue",
-            "web_search_system": "Web research, news search, information gathering, content fetching, source attribution, multiple URL fetching, current events, real-time information"
+            "web_search_system": "Web research, news search, information gathering, content fetching, source attribution, multiple URL fetching, current events, real-time information",
+            "calendar_assistant": "Calendar management, scheduling events, meeting coordination, appointment booking, time management, event creation, calendar organization, schedule planning"
         }
         
         self._load_or_create_index()
@@ -166,6 +167,7 @@ class HybridPromptSelector:
             "productivity_coach": ["productivity", "time", "schedule", "organize", "efficient", "workflow", "optimize", "improve"],
             "error_handling": ["error", "problem", "issue", "fix", "troubleshoot", "debug", "help"],
             "conversation_context": ["remember", "context", "previous", "earlier", "before"],
+            "calendar_assistant": ["calendar", "schedule", "meeting", "appointment", "event", "booking", "agenda", "time slot", "availability", "reservation", "conference", "call", "interview"],
             "web_search_system": [
                 # Core web search terms
                 "news", "weather", "temperature", "current", "latest", "today", "recent", 
