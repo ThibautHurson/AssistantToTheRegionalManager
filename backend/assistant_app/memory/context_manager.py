@@ -29,15 +29,27 @@ class HybridContextManager:
 
     def _extract_text_from_mcp_prompt(self, result) -> str:
         """Extract clean text content from MCP prompt response."""
-        # Access the messages
-        prompt = ""
-        messages = result.get("messages", [])
-        for message in messages:
-            # Assuming each message is a dictionary with a 'text' key
-            message_text = message.get("text")
-            print("Prompt Message:", message_text)
-            prompt += message_text
-        return prompt
+        try:
+            # Handle GetPromptResult objects (MCP client response)
+            if hasattr(result, 'messages') and result.messages:
+                message = result.messages[0]
+                if hasattr(message, 'content'):
+                    content = message.content
+                    if hasattr(content, 'text'):
+                        return content.text
+                    elif isinstance(content, dict) and 'text' in content:
+                        return content['text']
+                    else:
+                        return str(content)
+            
+            # If result is already a string, return it directly
+            if isinstance(result, str):
+                return result
+                
+            return ""
+        except Exception as e:
+            print(f"Error extracting text from MCP prompt: {e}")
+            return ""
 
     async def build_dynamic_system_prompt(self, user_query: str = "") -> str:
         """Build a dynamic system prompt using MCP prompts and semantic selection."""
@@ -47,8 +59,7 @@ class HybridContextManager:
         if self.mcp_session:
             try:
                 result = await self.mcp_session.get_prompt("system_base")
-                base_prompt = self._extract_text_from_mcp_prompt(result)
-                print(f"DEBUG: MCP result preview: {base_prompt[:200]}...")
+                base_prompt = self._extract_text_from_mcp_prompt(result.messages[0].content)
                 if not base_prompt:
                     base_prompt = "You are an intelligent personal assistant that helps users manage their tasks and emails."
             except Exception as e:
@@ -81,8 +92,7 @@ class HybridContextManager:
             for prompt_name in selected_prompts:
                 try:
                     result = await self.mcp_session.get_prompt(prompt_name)
-                    prompt_text = self._extract_text_from_mcp_prompt(result)
-                    print(f"DEBUG: Contextual prompt MCP result preview: {prompt_text[:200]}...")
+                    prompt_text = self._extract_text_from_mcp_prompt(result.messages[0].content)
                     if prompt_text:
                         contextual_prompts.append(prompt_text)
                 except Exception as e:
