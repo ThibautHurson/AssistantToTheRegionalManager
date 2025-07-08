@@ -3,6 +3,8 @@ import base64
 from backend.assistant_app.utils.handle_errors import retry_on_rate_limit_async
 from email.mime.text import MIMEText
 from googleapiclient.errors import HttpError
+from googleapiclient.discovery import build
+from backend.assistant_app.api_integration.google_token_store import load_credentials
 
 MAX_RESULTS = 10
 
@@ -53,9 +55,6 @@ async def _search_gmail(service, query: str):
 
 async def search_gmail(query: str, user_email: str):
     """Search Gmail messages with retry logic."""
-    from backend.assistant_app.api_integration.google_token_store import load_credentials
-    from googleapiclient.discovery import build
-
     creds = load_credentials(user_email)
     service = build("gmail", "v1", credentials=creds)
 
@@ -70,9 +69,6 @@ async def send_gmail(to: str, subject: str, body: str, user_email: str):
         subject: Email subject
         body: Email body (plain text)
     """
-    from backend.assistant_app.api_integration.google_token_store import load_credentials
-    from googleapiclient.discovery import build
-
     creds = load_credentials(user_email)
     service = build("gmail", "v1", credentials=creds)
 
@@ -95,9 +91,6 @@ async def reply_to_gmail(message_id: str, body: str, user_email: str):
     """
     if not message_id or len(message_id) < 10:  # Gmail message IDs are long hex strings
         return f"Invalid message_id: '{message_id}'. Please provide a valid Gmail message ID."
-    
-    from backend.assistant_app.api_integration.google_token_store import load_credentials
-    from googleapiclient.discovery import build
 
     creds = load_credentials(user_email)
     service = build("gmail", "v1", credentials=creds)
