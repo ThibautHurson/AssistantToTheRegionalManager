@@ -20,7 +20,65 @@ A sophisticated AI-powered assistant that integrates with Gmail to automatically
 - **Database Persistence**: PostgreSQL with Alembic migrations
 - **Redis Caching**: High-performance session and data caching
 
+## 📧 Gmail Integration Workflow
+
+```mermaid
+sequenceDiagram
+    participant Gmail
+    participant PubSub
+    participant Webhook
+    participant TaskDetector
+    participant AI
+    participant Database
+    
+    Gmail->>PubSub: New email received
+    PubSub->>Webhook: Push notification
+    Webhook->>TaskDetector: Process email content
+    TaskDetector->>AI: Analyze for tasks
+    AI->>TaskDetector: Return task details
+    TaskDetector->>Database: Create task record
+    Database-->>Webhook: Task saved
+    Webhook-->>PubSub: Processing complete
+```
+
 ## 🏗️ Architecture
+
+### System Overview
+```mermaid
+graph TB
+    subgraph "Frontend"
+        A[Streamlit UI<br/>Port 8501]
+    end
+    
+    subgraph "Backend"
+        B[FastAPI Server<br/>Port 8000]
+        C[AI Agents<br/>Mistral AI]
+        D[Task Detector]
+    end
+    
+    subgraph "Data Layer"
+        E[PostgreSQL<br/>Port 5432]
+        F[Redis<br/>Port 6379]
+        G[FAISS Vector Store]
+    end
+    
+    subgraph "External Services"
+        H[Gmail API]
+        I[Google Calendar]
+        J[Web Search]
+    end
+    
+    A <--> B
+    B <--> C
+    B <--> D
+    B <--> E
+    B <--> F
+    C <--> G
+    D <--> H
+    C <--> I
+    C <--> J
+    H --> D
+```
 
 ### Backend (FastAPI)
 - **API Layer**: RESTful endpoints for chat, tasks, authentication, and OAuth
@@ -173,6 +231,53 @@ docker-compose exec fastapi alembic revision --autogenerate -m "description"
 docker-compose exec fastapi alembic upgrade head
 ```
 
+### Database Schema
+```mermaid
+erDiagram
+    USERS {
+        string id PK
+        string email UK
+        string password_hash
+        datetime last_login
+        boolean is_oauth_authenticated
+        datetime created_at
+    }
+    
+    USER_SESSIONS {
+        string id PK
+        string user_id FK
+        string session_token UK
+        datetime expires_at
+        boolean is_active
+        datetime last_activity
+        datetime created_at
+    }
+    
+    TASKS {
+        string id PK
+        string ticket_id UK
+        string title
+        text description
+        datetime due_date
+        integer priority
+        string status
+        string user_id FK
+        string gmail_message_id UK
+        datetime created_at
+        datetime updated_at
+    }
+    
+    TICKET_COUNTER {
+        integer id PK
+        integer last_number
+    }
+    
+    USERS ||--o{ USER_SESSIONS : "has"
+    USERS ||--o{ TASKS : "creates"
+    USER_SESSIONS }o--|| USERS : "belongs_to"
+    TASKS }o--|| USERS : "belongs_to"
+```
+
 ## 🔧 Configuration
 
 ### Environment Variables
@@ -216,12 +321,71 @@ The application uses Docker Compose with the following services:
 
 ## 🤖 AI Features
 
+### Chat Conversation Flow
+```mermaid
+graph LR
+    A[User Input] --> B[Streamlit Frontend]
+    B --> C[FastAPI Backend]
+    C --> D[Context Manager]
+    D --> E[Vector Search<br/>FAISS]
+    E --> F[Prompt Selection]
+    F --> G[Mistral AI]
+    G --> H[Response Generation]
+    H --> I[Memory Update]
+    I --> J[Response to User]
+    
+    subgraph "Memory System"
+        K[Redis Session Store]
+        L[Conversation History]
+        M[Vector Embeddings]
+    end
+    
+    D --> K
+    D --> L
+    D --> M
+    E --> M
+    I --> K
+    I --> L
+    I --> M
+```
+
 ### Task Detection
 The AI automatically detects tasks from Gmail messages using:
 - Natural language processing
 - Priority assessment
 - Due date extraction
 - Context understanding
+
+### Task Detection Pipeline
+```mermaid
+flowchart TD
+    A[Email Content] --> B[Text Preprocessing]
+    B --> C[Content Cleaning]
+    C --> D[Task Detector]
+    D --> E[Mistral AI Analysis]
+    E --> F{Task Detected?}
+    F -->|Yes| G[Extract Task Details]
+    F -->|No| H[Skip Processing]
+    G --> I[Priority Assessment]
+    I --> J[Due Date Extraction]
+    J --> K[Task Creation]
+    K --> L[Database Storage]
+    L --> M[Task Available in UI]
+    
+    subgraph "Task Details"
+        N[Title]
+        O[Description]
+        P[Priority Level]
+        Q[Due Date]
+        R[User Assignment]
+    end
+    
+    G --> N
+    G --> O
+    I --> P
+    J --> Q
+    K --> R
+```
 
 ### Conversation Memory
 - Vector-based semantic search
