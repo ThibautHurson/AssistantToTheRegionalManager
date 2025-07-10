@@ -14,7 +14,17 @@ POSTGRES_DB = os.getenv("POSTGRES_DB", "taskmanager")
 
 SQLALCHEMY_DATABASE_URL = f"postgresql://{POSTGRES_USER}:{POSTGRES_PASSWORD}@{POSTGRES_HOST}:{POSTGRES_PORT}/{POSTGRES_DB}"
 
-engine = create_engine(SQLALCHEMY_DATABASE_URL)
+# Configure connection pool settings to prevent timeouts
+engine = create_engine(
+    SQLALCHEMY_DATABASE_URL,
+    pool_size=10,  # Increased from default 5
+    max_overflow=20,  # Increased from default 10
+    pool_timeout=30,  # Connection timeout in seconds
+    pool_recycle=3600,  # Recycle connections after 1 hour
+    pool_pre_ping=True,  # Verify connections before use
+    echo=False  # Set to True for SQL debugging
+)
+
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 Base = declarative_base()

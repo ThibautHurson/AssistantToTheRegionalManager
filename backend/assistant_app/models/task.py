@@ -11,14 +11,17 @@ class TicketCounter(Base):
 
 def generate_ticket_id():
     db = next(get_db())
-    counter = db.query(TicketCounter).first()
-    if not counter:
-        counter = TicketCounter(last_number=0)
-        db.add(counter)
-    
-    counter.last_number += 1
-    db.commit()
-    return f"ATTRM-{counter.last_number:06d}"  # Pad with zeros to 6 digits
+    try:
+        counter = db.query(TicketCounter).first()
+        if not counter:
+            counter = TicketCounter(last_number=0)
+            db.add(counter)
+        
+        counter.last_number += 1
+        db.commit()
+        return f"ATTRM-{counter.last_number:06d}"  # Pad with zeros to 6 digits
+    finally:
+        db.close()
 
 class Task(Base):
     __tablename__ = "tasks"

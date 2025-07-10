@@ -132,11 +132,14 @@ async def gmail_webhook(request: Request):
         for msg_id in batch:
             try:
                 db = next(get_db())
-                # Deduplication check
-                existing_task = db.query(TaskModel).filter_by(gmail_message_id=msg_id).first()
-                if existing_task:
-                    print(f"Task for Gmail message {msg_id} already exists, skipping.")
-                    continue
+                try:
+                    # Deduplication check
+                    existing_task = db.query(TaskModel).filter_by(gmail_message_id=msg_id).first()
+                    if existing_task:
+                        print(f"Task for Gmail message {msg_id} already exists, skipping.")
+                        continue
+                finally:
+                    db.close()
                     
                 # Properly await the get_gmail call
                 msg_data, msg_history_id, labels = await get_gmail(service, msg_id)
