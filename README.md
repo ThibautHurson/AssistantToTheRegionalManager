@@ -20,64 +20,100 @@ A sophisticated AI-powered assistant that integrates with Gmail to automatically
 - **Database Persistence**: PostgreSQL with Alembic migrations
 - **Redis Caching**: High-performance session and data caching
 
-## 📧 Gmail Integration Workflow
 
-```mermaid
-sequenceDiagram
-    participant Gmail
-    participant PubSub
-    participant Webhook
-    participant TaskDetector
-    participant AI
-    participant Database
-    
-    Gmail->>PubSub: New email received
-    PubSub->>Webhook: Push notification
-    Webhook->>TaskDetector: Process email content
-    TaskDetector->>AI: Analyze for tasks
-    AI->>TaskDetector: Return task details
-    TaskDetector->>Database: Create task record
-    Database-->>Webhook: Task saved
-    Webhook-->>PubSub: Processing complete
-```
 
 ## 🏗️ Architecture
 
 ### System Overview
 ```mermaid
 graph TB
-    subgraph "Frontend"
+    subgraph "Frontend Layer"
         A[Streamlit UI<br/>Port 8501]
+        A1[Chat Interface]
+        A2[Task Manager]
+        A3[Auth UI]
+        A4[Prompt Manager]
+        A --> A1
+        A --> A2
+        A --> A3
+        A --> A4
     end
     
-    subgraph "Backend"
+    subgraph "Backend Layer"
         B[FastAPI Server<br/>Port 8000]
         C[AI Agents<br/>Mistral AI]
         D[Task Detector]
+        E[Context Manager]
+        F[Prompt Selector]
+        
+        B --> C
+        B --> D
+        B --> E
+        B --> F
     end
     
     subgraph "Data Layer"
-        E[PostgreSQL<br/>Port 5432]
-        F[Redis<br/>Port 6379]
-        G[FAISS Vector Store]
+        G[PostgreSQL<br/>Port 5432]
+        H[Redis<br/>Port 6379]
+        I[FAISS Vector Store]
+        
+        G1[Users Table]
+        G2[Tasks Table]
+        G3[Sessions Table]
+        G --> G1
+        G --> G2
+        G --> G3
     end
     
     subgraph "External Services"
-        H[Gmail API]
-        I[Google Calendar]
-        J[Web Search]
+        J[Gmail API]
+        K[Google Calendar]
+        L[Web Search]
+        M[Gmail Pub/Sub]
     end
     
+    subgraph "AI & Memory"
+        N[Mistral AI]
+        O[Vector Search]
+        P[Session Store]
+        Q[Conversation History]
+    end
+    
+    %% Frontend to Backend
     A <--> B
-    B <--> C
-    B <--> D
-    B <--> E
-    B <--> F
-    C <--> G
-    D <--> H
+    A1 <--> C
+    A2 <--> G2
+    A3 <--> G1
+    
+    %% Backend to Data
+    B <--> G
+    B <--> H
     C <--> I
-    C <--> J
-    H --> D
+    E <--> H
+    E <--> I
+    
+    %% External Integrations
+    D <--> J
+    D <--> M
+    C <--> K
+    C <--> L
+    
+    %% AI & Memory Connections
+    C <--> N
+    E <--> O
+    E <--> P
+    E <--> Q
+    
+    %% Data Flow
+    H <--> P
+    I <--> O
+    G <--> Q
+    
+    style A fill:#e1f5fe
+    style B fill:#f3e5f5
+    style G fill:#e8f5e8
+    style J fill:#fff3e0
+    style N fill:#fce4ec
 ```
 
 ### Backend (FastAPI)
@@ -398,6 +434,73 @@ flowchart TD
 - **Gmail Tools**: Email composition and management
 - **Web Search**: Real-time information retrieval
 - **Task Management**: CRUD operations for tasks
+
+## 🔄 Workflows
+
+### 📧 Gmail Integration Workflow
+
+```mermaid
+sequenceDiagram
+    participant Gmail
+    participant PubSub
+    participant Webhook
+    participant TaskDetector
+    participant AI
+    participant Database
+    
+    Gmail->>PubSub: New email received
+    PubSub->>Webhook: Push notification
+    Webhook->>TaskDetector: Process email content
+    TaskDetector->>AI: Analyze for tasks
+    AI->>TaskDetector: Return task details
+    TaskDetector->>Database: Create task record
+    Database-->>Webhook: Task saved
+    Webhook-->>PubSub: Processing complete
+```
+
+### 🔐 Authentication Flow
+
+```mermaid
+sequenceDiagram
+    participant User
+    participant Streamlit
+    participant FastAPI
+    participant Google
+    participant Database
+    
+    User->>Streamlit: Register/Login
+    Streamlit->>FastAPI: Auth Request
+    FastAPI->>Database: Validate User
+    Database-->>FastAPI: User Data
+    FastAPI-->>Streamlit: Session Token
+    
+    User->>Streamlit: OAuth Request
+    Streamlit->>Google: Authorize
+    Google-->>Streamlit: Auth Code
+    Streamlit->>FastAPI: Exchange Code
+    FastAPI->>Google: Token Exchange
+    Google-->>FastAPI: Access Token
+    FastAPI->>Database: Store Credentials
+    FastAPI-->>Streamlit: OAuth Complete
+```
+
+### 📅 Calendar Integration Flow
+
+```mermaid
+sequenceDiagram
+    participant User
+    participant AI
+    participant Calendar
+    participant Database
+    
+    User->>AI: "Schedule meeting tomorrow"
+    AI->>Calendar: Check Availability
+    Calendar-->>AI: Available Slots
+    AI->>Calendar: Create Event
+    Calendar-->>AI: Event Created
+    AI->>Database: Log Action
+    AI-->>User: "Meeting scheduled for 2 PM"
+```
 
 ## 🔒 Security
 
