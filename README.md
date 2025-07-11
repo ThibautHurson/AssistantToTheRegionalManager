@@ -30,9 +30,9 @@ graph TB
     subgraph "Frontend Layer"
         A[Streamlit UI<br/>Port 8501]
         A1[Chat Interface]
+        A4[Prompt Manager]
         A2[Task Manager]
         A3[Auth UI]
-        A4[Prompt Manager]
         A --> A1
         A --> A2
         A --> A3
@@ -44,10 +44,13 @@ graph TB
         C[Assistant Agent]
         D[Task Detector]
         E[Hybrid Context Manager]
+        F[MCP Servers]
         
         B --> C
         B --> D
-        B --> E
+        C --> E
+        C --> F
+        E --> F
     end
     
     subgraph "Data Layer"
@@ -55,8 +58,13 @@ graph TB
         I[FAISS Vector Store]
         H[Redis<br/>Port 6379]
 
-        G1[Users Table]
+        Q[Prompts]
+        O[Long-Term Cross Chat Memory]
+        R[Prompt Index]
+        P[Short/Medium-Term Chat Session Memory]
+
         G3[User Sessions]
+        G1[Users Table]
         G2[Tasks Table]
         G --> G1
         G --> G2
@@ -70,11 +78,6 @@ graph TB
         L[Web Search]
     end
     
-    subgraph "AI & Memory"
-        N[LLM]
-        P[Chat Session History]
-    end
-    
     %% Frontend to Backend
     A <--> B
     A3 <--> G1
@@ -82,27 +85,26 @@ graph TB
     
     %% Backend to Data
     B <--> G
-    E <--> H
     B <--> H
+    E <--> H
     E <--> I
     
     %% External Integrations
     D <--> J
     D <--> M
-    C <--> J
-    C <--> K
-    C <--> L
-    
-    %% AI & Memory Connections
-    C <--> N
+    F <--> J
+    F <--> K
+    F <--> L
     
     %% Data Flow
+    F <--> Q
+    I <--> O
+    I <--> R
     H <--> P
     
     style A fill:#e1f5fe
     style B fill:#f3e5f5
     style G fill:#e8f5e8
-    style N fill:#fce4ec
     style H fill:#ffb3b3
 ```
 
