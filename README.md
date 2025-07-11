@@ -41,79 +41,69 @@ graph TB
     
     subgraph "Backend Layer"
         B[FastAPI Server<br/>Port 8000]
-        C[AI Agents<br/>Mistral AI]
+        C[Assistant Agent]
         D[Task Detector]
-        E[Context Manager]
-        F[Prompt Selector]
+        E[Hybrid Context Manager]
         
         B --> C
         B --> D
         B --> E
-        B --> F
     end
     
     subgraph "Data Layer"
         G[PostgreSQL<br/>Port 5432]
-        H[Redis<br/>Port 6379]
         I[FAISS Vector Store]
-        
+        H[Redis<br/>Port 6379]
+
         G1[Users Table]
+        G3[User Sessions]
         G2[Tasks Table]
-        G3[Sessions Table]
         G --> G1
         G --> G2
         G --> G3
     end
     
     subgraph "External Services"
+        M[Gmail Pub/Sub]
         J[Gmail API]
         K[Google Calendar]
         L[Web Search]
-        M[Gmail Pub/Sub]
     end
     
     subgraph "AI & Memory"
-        N[Mistral AI]
-        O[Vector Search]
-        P[Session Store]
-        Q[Conversation History]
+        N[LLM]
+        P[Chat Session History]
     end
     
     %% Frontend to Backend
     A <--> B
-    A1 <--> C
-    A2 <--> G2
     A3 <--> G1
+    A2 <--> G2
     
     %% Backend to Data
     B <--> G
-    B <--> H
-    C <--> I
     E <--> H
+    B <--> H
     E <--> I
     
     %% External Integrations
     D <--> J
     D <--> M
+    C <--> J
     C <--> K
     C <--> L
     
     %% AI & Memory Connections
     C <--> N
-    E <--> O
-    E <--> P
-    E <--> Q
     
     %% Data Flow
     H <--> P
-    I <--> O
-    G <--> Q
     
     style A fill:#e1f5fe
     style B fill:#f3e5f5
     style G fill:#e8f5e8
-    style J fill:#fff3e0
     style N fill:#fce4ec
+    style H fill:#ffb3b3
 ```
 
 ### Backend (FastAPI)
