@@ -130,7 +130,7 @@ graph TB
 - **Docker Compose**: Complete containerized development environment
 - **PostgreSQL**: Primary database for users, tasks, and sessions
 - **Redis**: Caching and session storage
-- **Alembic**: Database migration management
+- **FAISS**: Long-term memory, cross-session retrieval, prompt retrieval
 
 ## 🚀 Quick Start
 
@@ -146,34 +146,13 @@ cd AssistantToTheRegionalManager
 ```
 
 ### 2. Environment Setup
-Create a `.env` file in the root directory:
-```env
-# Mistral AI Configuration
-MISTRAL_KEY=your_mistral_api_key
+Create a `.env` file in the root directory, and add the following variables:
+| Variable | Description | Required |
+|----------|-------------|----------|
+| `MISTRAL_KEY` | Mistral AI API Key | ✅ Required |
+| `GOOGLE_PROJECT_ID` | Google Cloud Project ID | ✅ Required |
+| `GOOGLE_TOPIC` | Google Pub/Sub topic for Gmail notifications | ✅ Required |
 
-# API Configuration
-FASTAPI_URI=http://fastapi:8000
-REDIRECT_URI=http://localhost:8000/oauth2callback
-
-# Google OAuth Configuration
-GOOGLE_CLIENT_SECRET_JSON=google_setup/client_secret.json
-GOOGLE_PROJECT_ID=your_project_id
-GOOGLE_TOPIC=your_pubsub_topic
-
-# Database Configuration (optional - defaults are used)
-POSTGRES_USER=postgres
-POSTGRES_PASSWORD=postgres
-POSTGRES_HOST=localhost
-POSTGRES_PORT=5432
-POSTGRES_DB=taskmanager
-
-# Redis Configuration (optional - defaults are used)
-REDIS_URL=redis://localhost:6379
-
-# Optional Configuration
-MCP_SERVER_PATH=backend/assistant_app/mcp_server.py
-ENVIRONMENT=development
-```
 
 ### 3. Start the Application
 ```bash
@@ -205,11 +184,6 @@ docker-compose up
 8. Copy your Project ID to the `GOOGLE_PROJECT_ID` variable in your `.env` file
 9. Create a Pub/Sub topic for Gmail notifications and add it to `GOOGLE_TOPIC` in your `.env` file
 
-### Database Setup
-```bash
-# Run database migrations
-docker-compose exec fastapi alembic upgrade head
-```
 
 ### First Time Setup
 1. Access the Streamlit UI at http://localhost:8501
@@ -231,7 +205,6 @@ AssistantToTheRegionalManager2/
 │       ├── services/        # Business logic
 │       └── utils/           # Utilities and helpers
 ├── streamlit/               # Streamlit frontend
-├── alembic/                 # Database migrations
 ├── scripts/                 # Utility scripts
 └── docker-compose.yml       # Container orchestration
 ```
@@ -252,15 +225,6 @@ uvicorn assistant_app.main:app --reload --host 0.0.0.0 --port 8000
 # Run Streamlit frontend
 cd streamlit
 streamlit run main.py
-```
-
-### Database Migrations
-```bash
-# Create new migration
-docker-compose exec fastapi alembic revision --autogenerate -m "description"
-
-# Apply migrations
-docker-compose exec fastapi alembic upgrade head
 ```
 
 ### Database Schema
@@ -299,10 +263,6 @@ erDiagram
         datetime updated_at
     }
     
-    TICKET_COUNTER {
-        integer id PK
-        integer last_number
-    }
     
     USERS ||--o{ USER_SESSIONS : "has"
     USERS ||--o{ TASKS : "creates"
@@ -312,23 +272,6 @@ erDiagram
 
 ## 🔧 Configuration
 
-### Environment Variables
-| Variable | Description | Default | Required |
-|----------|-------------|---------|----------|
-| `MISTRAL_KEY` | Mistral AI API Key | - | ✅ Required |
-| `FASTAPI_URI` | FastAPI server URI | http://fastapi:8000 | ✅ Required |
-| `REDIRECT_URI` | OAuth redirect URI | http://localhost:8000/oauth2callback | ✅ Required |
-| `GOOGLE_CLIENT_SECRET_JSON` | Path to Google client secret JSON file | google_setup/client_secret.json | ✅ Required |
-| `GOOGLE_PROJECT_ID` | Google Cloud Project ID | - | ✅ Required |
-| `GOOGLE_TOPIC` | Google Pub/Sub topic for Gmail notifications | - | ✅ Required |
-| `POSTGRES_USER` | PostgreSQL username | postgres | ❌ Optional |
-| `POSTGRES_PASSWORD` | PostgreSQL password | postgres | ❌ Optional |
-| `POSTGRES_HOST` | PostgreSQL host | localhost | ❌ Optional |
-| `POSTGRES_PORT` | PostgreSQL port | 5432 | ❌ Optional |
-| `POSTGRES_DB` | PostgreSQL database name | taskmanager | ❌ Optional |
-| `REDIS_URL` | Redis connection URL | redis://localhost:6379 | ❌ Optional |
-| `MCP_SERVER_PATH` | Path to MCP server script | backend/assistant_app/mcp_server.py | ❌ Optional |
-| `ENVIRONMENT` | Application environment | development | ❌ Optional |
 
 ### Docker Configuration
 The application uses Docker Compose with the following services:
