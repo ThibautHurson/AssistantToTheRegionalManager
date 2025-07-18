@@ -296,6 +296,12 @@ The application uses Docker Compose with the following services:
 
 ## 🤖 AI Features
 
+### Tools and Integrations
+- **Calendar Tools**: Schedule and manage events
+- **Gmail Tools**: Email composition and management
+- **Web Search**: Real-time information retrieval
+- **Task Management**: CRUD operations for tasks
+
 ### Chat Conversation Flow
 ```mermaid
 graph LR
@@ -331,53 +337,6 @@ The AI automatically detects tasks from Gmail messages using:
 - Due date extraction
 - Context understanding
 
-### Task Detection Pipeline
-```mermaid
-flowchart TD
-    A[Email Content] --> B[Text Preprocessing]
-    B --> C[Content Cleaning]
-    C --> D[Task Detector]
-    D --> E[Mistral AI Analysis]
-    E --> F{Task Detected?}
-    F -->|Yes| G[Extract Task Details]
-    F -->|No| H[Skip Processing]
-    G --> I[Priority Assessment]
-    I --> J[Due Date Extraction]
-    J --> K[Task Creation]
-    K --> L[Database Storage]
-    L --> M[Task Available in UI]
-    
-    subgraph "Task Details"
-        N[Title]
-        O[Description]
-        P[Priority Level]
-        Q[Due Date]
-        R[User Assignment]
-    end
-    
-    G --> N
-    G --> O
-    I --> P
-    J --> Q
-    K --> R
-```
-
-### Conversation Memory
-- Vector-based semantic search
-- Context-aware responses
-- Persistent conversation history
-- Multi-session management
-
-### Tools and Integrations
-- **Calendar Tools**: Schedule and manage events
-- **Gmail Tools**: Email composition and management
-- **Web Search**: Real-time information retrieval
-- **Task Management**: CRUD operations for tasks
-
-## 🔄 Workflows
-
-### 📧 Gmail Integration Workflow
-
 ```mermaid
 sequenceDiagram
     participant Gmail
@@ -390,15 +349,20 @@ sequenceDiagram
     Gmail->>PubSub: New email received
     PubSub->>Webhook: Push notification
     Webhook->>TaskDetector: Process email content
-    TaskDetector->>AI: Analyze for tasks
-    AI->>TaskDetector: Return task details
+    TaskDetector->>AI:LLM call to detect tasks
+    AI->>TaskDetector: LLM call to extract task details
     TaskDetector->>Database: Create task record
     Database-->>Webhook: Task saved
     Webhook-->>PubSub: Processing complete
 ```
 
-### 🔐 Authentication Flow
+### Conversation Memory
+- Vector-based semantic search
+- Context-aware responses
+- Persistent conversation history
+- Multi-session management
 
+## 🔐 Authentication Flow
 ```mermaid
 sequenceDiagram
     participant User
@@ -423,24 +387,6 @@ sequenceDiagram
     FastAPI-->>Streamlit: OAuth Complete
 ```
 
-### 📅 Calendar Integration Flow
-
-```mermaid
-sequenceDiagram
-    participant User
-    participant AI
-    participant Calendar
-    participant Database
-    
-    User->>AI: "Schedule meeting tomorrow"
-    AI->>Calendar: Check Availability
-    Calendar-->>AI: Available Slots
-    AI->>Calendar: Create Event
-    Calendar-->>AI: Event Created
-    AI->>Database: Log Action
-    AI-->>User: "Meeting scheduled for 2 PM"
-```
-
 ## 🔒 Security
 
 - **OAuth 2.0**: Secure Google authentication
@@ -455,16 +401,5 @@ sequenceDiagram
 - **Logging**: Structured logging with different levels
 - **Error Handling**: Comprehensive error handling and recovery
 - **Database Monitoring**: Connection pool management
-
-## 🚀 Deployment
-
-### Production Considerations
-1. **Environment Variables**: Use production secrets
-2. **Database**: Use managed PostgreSQL service
-3. **Redis**: Use managed Redis service
-4. **SSL/TLS**: Configure HTTPS
-5. **CORS**: Restrict origins to your domain
-6. **Rate Limiting**: Implement API rate limiting
-7. **Monitoring**: Add application monitoring
 
 ---
