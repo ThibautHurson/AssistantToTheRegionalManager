@@ -11,10 +11,7 @@ import copy
 import re
 
 from backend.assistant_app.agents.base_agent import BaseAgent
-from backend.assistant_app.memory.redis_history_store import RedisHistoryStore
 from backend.assistant_app.memory.context_manager import HybridContextManager
-from backend.assistant_app.memory.vector_stores.faiss_vector_store import VectorStoreManager
-from backend.assistant_app.memory.summarizer import SummarizationManager
 from backend.assistant_app.utils.handle_errors import retry_on_rate_limit_async
 
 class MistralMCPChatAgent(BaseAgent):
@@ -26,7 +23,7 @@ class MistralMCPChatAgent(BaseAgent):
     def __init__(self, config=None, max_steps=5):
         load_dotenv()
         self.config = config or {}
-        self.api_key = os.getenv(self.config.get("api_key_env_var", "MISTRAL_API_KEY"))
+        self.api_key = os.getenv("MISTRAL_KEY")
         if not self.api_key:
             raise ValueError("Mistral API key not found in environment variables")
         
@@ -75,16 +72,6 @@ class MistralMCPChatAgent(BaseAgent):
         response = await self.session.list_tools()
         self.mcp_tools = response.tools
         
-        # Initialize memory and context components with MCP session
-        history_store = RedisHistoryStore()
-        vector_store = VectorStoreManager() # Uses default paths
-        summarizer = SummarizationManager()
-        self.context_manager = HybridContextManager(
-            history_store=history_store,
-            vector_store=vector_store,
-            summarizer=summarizer,
-            mcp_session=self.session  # Pass MCP session for prompt fetching
-        )
         print("\nConnected to server with tools:", [tool.name for tool in self.mcp_tools])
 
     async def connect_to_fetch_server(self):
@@ -155,8 +142,14 @@ class MistralMCPChatAgent(BaseAgent):
         if user_email is None:
             user_email = session_id
             
+        # Get user-specific context manager
+        context_manager = HybridContextManager(
+            mcp_session=self.session,
+            user_id=user_email
+        )
+            
         # Get the complete context including dynamic system prompt
-        llm_context = await self.context_manager.get_context(session_id, user_query=query)
+        llm_context = await context_manager.get_context(session_id, user_query=query)
         
         # Add the current user query
         llm_context.append({"role": "user", "content": query})
@@ -264,14 +257,29 @@ class MistralMCPChatAgent(BaseAgent):
             # Step 2: LLM gives a final answer (no tools)
             else:
                 content = message.content
-                await self.context_manager.save_new_messages(session_id, new_messages_this_turn)
+                await context_manager.save_new_messages(session_id, new_messages_this_turn)
                 print(llm_context)
                 return self._cleanup_source_references(content)
 
         # Fallback if max_steps is reached
         final_content = llm_context[-1].get("content", "Max steps reached.")
-        await self.context_manager.save_new_messages(session_id, new_messages_this_turn)
+        await context_manager.save_new_messages(session_id, new_messages_this_turn)
         return self._cleanup_source_references(final_content)
 
     async def cleanup(self):
         await self.exit_stack.aclose()
+
+    def clear_user_data(self, user_email: str):
+        """Clear all data for a specific user (for privacy compliance)."""
+        from backend.assistant_app.services.user_data_service import UserDataService
+        
+        # Use the dedicated user data service for comprehensive deletion
+        user_data_service = UserDataService()
+        results = user_data_service.clear_user_data(user_email)
+        
+        if results["success"]:
+            print(f"Successfully cleared all data for user: {user_email}")
+        else:
+            print(f"Completed data deletion for user: {user_email} with errors: {results['errors']}")
+        
+        return results

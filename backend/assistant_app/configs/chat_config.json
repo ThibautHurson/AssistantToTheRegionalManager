@@ -1,5 +1,4 @@
 {
     "provider": "mistral",
-    "model": "mistral-small-2503",
-    "api_key_env_var": "MISTRAL_KEY"
+    "model": "mistral-small-2503"
 }

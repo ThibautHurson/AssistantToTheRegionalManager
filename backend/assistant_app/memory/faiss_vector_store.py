@@ -6,11 +6,21 @@ import json
 
 class VectorStoreManager:
     def __init__(self, 
-                 index_path="backend/assistant_app/memory/vector_stores/faiss_index.bin", 
-                 mapping_path="backend/assistant_app/memory/vector_stores/faiss_mapping.json", 
+                 user_id: str = None,
+                 base_path="backend/assistant_app/memory/vector_stores", 
                  model_name='all-MiniLM-L6-v2'):
-        self.index_path = index_path
-        self.mapping_path = mapping_path
+        self.user_id = user_id
+        self.base_path = base_path
+        
+        # Create user-specific paths
+        if user_id:
+            self.index_path = f"{base_path}/faiss_index_{user_id}.bin"
+            self.mapping_path = f"{base_path}/faiss_mapping_{user_id}.json"
+        else:
+            # Fallback to global store for backward compatibility
+            self.index_path = f"{base_path}/faiss_index.bin"
+            self.mapping_path = f"{base_path}/faiss_mapping.json"
+            
         self.model = SentenceTransformer(model_name)
         
         # Get the embedding dimension from the model
@@ -23,6 +33,9 @@ class VectorStoreManager:
         self._load()
 
     def _load(self):
+        # Ensure the directory exists
+        os.makedirs(os.path.dirname(self.index_path), exist_ok=True)
+        
         # Load the FAISS index
         if os.path.exists(self.index_path):
             self.index = faiss.read_index(self.index_path)
@@ -33,7 +46,7 @@ class VectorStoreManager:
                 self.next_doc_id = max(self.doc_mapping.keys()) + 1 if self.doc_mapping else 0
             else:
                 # If mapping is missing, the index is out of sync. Reset.
-                print("Warning: Index found but mapping is missing. Resetting index.")
+                print(f"Warning: Index found but mapping is missing for user {self.user_id}. Resetting index.")
                 self._reset_index()
         else:
             # If index doesn't exist, create a new one
@@ -85,4 +98,12 @@ class VectorStoreManager:
         return results
 
     def get_all_documents(self) -> list[str]:
-        return list(self.doc_mapping.values()) 
+        return list(self.doc_mapping.values())
+        
+    def clear_user_data(self):
+        """Clear all data for the current user."""
+        if os.path.exists(self.index_path):
+            os.remove(self.index_path)
+        if os.path.exists(self.mapping_path):
+            os.remove(self.mapping_path)
+        self._reset_index()

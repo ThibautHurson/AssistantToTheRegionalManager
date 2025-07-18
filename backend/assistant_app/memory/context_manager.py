@@ -1,26 +1,27 @@
 import json
 from backend.assistant_app.memory.redis_history_store import RedisHistoryStore
-from backend.assistant_app.memory.vector_stores.faiss_vector_store import VectorStoreManager
+from backend.assistant_app.memory.faiss_vector_store import VectorStoreManager
 from backend.assistant_app.memory.summarizer import SummarizationManager
 from backend.assistant_app.memory.prompt_selector import HybridPromptSelector
 
 class HybridContextManager:
     def __init__(
         self,
-        history_store: RedisHistoryStore,
-        vector_store: VectorStoreManager,
-        summarizer: SummarizationManager,
+        vector_store: VectorStoreManager = None,
+        history_store: RedisHistoryStore = RedisHistoryStore(),
+        summarizer: SummarizationManager = SummarizationManager(),
         mcp_session=None,
+        user_id: str = None,
         short_term_memory_size: int = 10,
         summary_update_interval: int = 20  # Number of messages before updating summary
     ):
+        self.vector_store = vector_store or VectorStoreManager(user_id=user_id)
         self.history_store = history_store
-        self.vector_store = vector_store
         self.summarizer = summarizer
         self.mcp_session = mcp_session
         self.short_term_memory_size = short_term_memory_size
         self.summary_update_interval = summary_update_interval
-        
+        self.user_id = user_id
         # Initialize prompt selector
         self.prompt_selector = HybridPromptSelector()
 
@@ -270,4 +271,25 @@ class HybridContextManager:
                 validated_context.append(msg)
                 i += 1
         
-        return validated_context 
+        return validated_context
+    
+    def clear_user_data(self):
+        """Clear memory-related user data (vector store and Redis). 
+        For complete user data deletion including tasks, use UserDataService."""
+        print(f"Starting memory data deletion for user: {self.user_id}")
+        
+        # Clear vector store data
+        self.vector_store.clear_user_data()
+        
+        # Clear Redis history data
+        deleted_count = self.history_store.delete_history(self.user_id)
+        
+        print(f"Completed memory data deletion for user: {self.user_id}")
+        print(f"- Vector store: Cleared")
+        print(f"- Redis keys: {deleted_count} deleted")
+        
+        return {
+            "user_id": self.user_id,
+            "vector_store_cleared": True,
+            "redis_keys_deleted": deleted_count,
+        }

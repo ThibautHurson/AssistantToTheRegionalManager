@@ -91,4 +91,47 @@ async def get_current_user_info(user: User = Depends(get_current_user)):
         is_oauth_authenticated=user.is_oauth_authenticated,
         created_at=user.created_at.isoformat() if user.created_at else None,
         last_login=user.last_login.isoformat() if user.last_login else None
-    ) 
+    )
+
+@router.post("/auth/clear-data")
+async def clear_user_data(session_token: str):
+    """Clear all user data including vector store data for privacy compliance."""
+    try:
+        # Validate session and get user
+        user = auth_service.validate_session(session_token)
+        if not user:
+            raise HTTPException(
+                status_code=401,
+                detail="Invalid or expired session. Please log in again."
+            )
+        
+        # Get the chat agent instance and clear user data
+        from backend.assistant_app.api.v1.endpoints.chat import get_chat_agent
+        chat_agent = get_chat_agent()
+        results = chat_agent.clear_user_data(user.email)
+        
+        if results["success"]:
+            return {
+                "message": "User data cleared successfully",
+                "details": {
+                    "vector_store_cleared": results["vector_store_cleared"],
+                    "redis_keys_deleted": results["redis_keys_deleted"],
+                    "database_tasks_deleted": results["database_tasks_deleted"]
+                }
+            }
+        else:
+            return {
+                "message": "User data cleared with some errors",
+                "details": {
+                    "vector_store_cleared": results["vector_store_cleared"],
+                    "redis_keys_deleted": results["redis_keys_deleted"],
+                    "database_tasks_deleted": results["database_tasks_deleted"],
+                    "errors": results["errors"]
+                }
+            }
+    except Exception as e:
+        print(f"Error clearing user data: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Error clearing user data: {str(e)}"
+        ) 
