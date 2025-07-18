@@ -106,10 +106,10 @@ graph TB
     H <--> P
    
     
-    style A fill:#e1f5fe
-    style B fill:#f3e5f5
-    style G fill:#e8f5e8
-    style H fill:#ffb3b3
+    style A fill:#e1f5fe,color:#000000
+    style B fill:#f3e5f5,color:#000000
+    style G fill:#e8f5e8,color:#000000
+    style H fill:#ffb3b3,color:#000000
 ```
 
 ### Backend (FastAPI)
