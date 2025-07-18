@@ -27,3 +27,9 @@ dependencies:
       - sentence-transformers
       - faiss-cpu
       - mcp
+      - mcp-server-fetch
+      - httpx
+      - beautifulsoup4
+      - markdownify
+      - bcrypt
+      - email-validator
