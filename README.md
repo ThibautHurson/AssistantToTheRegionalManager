@@ -54,13 +54,14 @@ graph TB
     end
     
     subgraph "Data Layer"
+        Q[Prompts]
         G[PostgreSQL<br/>Port 5432]
         I[FAISS Vector Store]
         H[Redis<br/>Port 6379]
 
-        Q[Prompts]
-        O[Long-Term Cross Chat Memory]
+        
         R[Prompt Index]
+        O[Long-Term Cross Chat Memory]
         P[Short/Medium-Term Chat Session Memory]
 
         G3[User Sessions]
@@ -85,8 +86,9 @@ graph TB
     
     %% Backend to Data
     B <--> G
-    B <--> H
+    
     E <--> H
+    B <--> H
     E <--> I
     
     %% External Integrations
@@ -99,8 +101,10 @@ graph TB
     %% Data Flow
     F <--> Q
     I <--> O
+    Q <--> R
     I <--> R
     H <--> P
+   
     
     style A fill:#e1f5fe
     style B fill:#f3e5f5
