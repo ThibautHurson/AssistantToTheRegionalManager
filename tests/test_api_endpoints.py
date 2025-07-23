@@ -1,7 +1,9 @@
+from unittest.mock import Mock, patch
 import pytest
 from fastapi.testclient import TestClient
-from unittest.mock import Mock, patch
 from backend.assistant_app.main import app
+
+
 class TestAPIEndpoints:
     """Test cases for API endpoints."""
 
@@ -86,7 +88,8 @@ class TestAPIEndpoints:
         assert login_response.status_code == 200
         session_token = login_response.json()["session_token"]
         # Test session validation
-        response = client.get("/auth/validate", params={"session_token": session_token})
+        response = client.get("/auth/validate",
+                            params={"session_token": session_token})
         assert response.status_code == 200
         data = response.json()
         assert "email" in data
@@ -98,7 +101,8 @@ class TestAPIEndpoints:
     def test_validate_session_failure(self, client):
         """Test failed session validation."""
         # Test with invalid session token
-        response = client.get("/auth/validate", params={"session_token": "invalid_token"})
+        response = client.get("/auth/validate",
+                            params={"session_token": "invalid_token"})
         assert response.status_code == 401
         data = response.json()
         assert "detail" in data
@@ -119,11 +123,13 @@ class TestAPIEndpoints:
         }
         mock_get_chat_agent.return_value = mock_agent
         # Mock authentication
-        with patch('backend.assistant_app.api.v1.endpoints.auth_router.auth_service') as mock_auth:
+        with patch('backend.assistant_app.api.v1.endpoints.auth_router.auth_service') \
+             as mock_auth:
             mock_user = Mock()
             mock_user.email = "test@example.com"
             mock_auth.validate_session.return_value = mock_user
-            response = client.post("/auth/clear-data", params={"session_token": "valid_token"})
+            response = client.post("/auth/clear-data",
+                                params={"session_token": "valid_token"})
             assert response.status_code == 200
             data = response.json()
             assert "message" in data
@@ -138,9 +144,11 @@ class TestAPIEndpoints:
     def test_clear_user_data_unauthorized(self, mock_get_chat_agent, client):
         """Test clear user data endpoint with invalid session."""
         # Mock authentication failure
-        with patch('backend.assistant_app.api.v1.endpoints.auth_router.auth_service') as mock_auth:
+        with patch('backend.assistant_app.api.v1.endpoints.auth_router.auth_service') \
+             as mock_auth:
             mock_auth.validate_session.return_value = None
-            response = client.post("/auth/clear-data", params={"session_token": "invalid_token"})
+            response = client.post("/auth/clear-data",
+                                params={"session_token": "invalid_token"})
             assert response.status_code == 401
             data = response.json()
             assert "detail" in data
@@ -162,16 +170,19 @@ class TestAPIEndpoints:
         }
         mock_get_chat_agent.return_value = mock_agent
         # Mock authentication
-        with patch('backend.assistant_app.api.v1.endpoints.auth_router.auth_service') as mock_auth:
+        with patch('backend.assistant_app.api.v1.endpoints.auth_router.auth_service') \
+             as mock_auth:
             mock_user = Mock()
             mock_user.email = "test@example.com"
             mock_auth.validate_session.return_value = mock_user
-            response = client.post("/auth/clear-data", params={"session_token": "valid_token"})
+            response = client.post("/auth/clear-data",
+                                params={"session_token": "valid_token"})
             assert response.status_code == 200
             data = response.json()
             assert "message" in data
             assert "details" in data
-            assert not data["details"]["vector_store_cleared"]  # Should be False when there are errors
+            # vector_store_cleared should be False when there are errors
+            assert not data["details"]["vector_store_cleared"]
             assert "errors" in data["details"]
             assert len(data["details"]["errors"]) == 2
 

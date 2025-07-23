@@ -10,11 +10,11 @@ class UserDataService:
 
     def clear_user_data(self, user_email: str) -> Dict[str, Any]:
         """
-        Clear all data for a specific user including tasks, vector store, and Redis data.
+        Clear all data for a specific user including tasks, vector store, and
+        Redis data.
 
         Args:
             user_email: User's email address
-
         Returns:
             Dict containing deletion results
         """

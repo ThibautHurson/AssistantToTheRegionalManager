@@ -1,11 +1,13 @@
-import pytest
 import os
-import tempfile
 import shutil
+import tempfile
+import pytest
 from backend.assistant_app.memory.faiss_vector_store import VectorStoreManager
+
 
 class TestVectorStoreManager:
     """Test cases for VectorStoreManager."""
+
     @pytest.fixture
     def temp_dir(self):
         """Create a temporary directory for testing."""
@@ -14,7 +16,8 @@ class TestVectorStoreManager:
         shutil.rmtree(temp_dir)
 
     @pytest.fixture
-    def mock_vector_store_setup(self, mock_sentence_transformer, mock_faiss_index, temp_dir, sample_user_email):
+    def mock_vector_store_setup(self, mock_sentence_transformer, mock_faiss_index,
+                               temp_dir, sample_user_email):
         """Setup mock vector store with common configuration."""
         # Configure mocks
         mock_sentence_transformer.get_sentence_embedding_dimension.return_value = 384
@@ -29,13 +32,17 @@ class TestVectorStoreManager:
         }
 
     @pytest.mark.unit
-    def test_vector_store_initialization(self, mock_sentence_transformer, mock_faiss_index, temp_dir, sample_user_email):
+    def test_vector_store_initialization(self, mock_sentence_transformer,
+                                       mock_faiss_index, temp_dir,
+                                       sample_user_email):
         """Test VectorStoreManager initialization."""
         # Setup mocks
         mock_sentence_transformer.get_sentence_embedding_dimension.return_value = 384
-        mock_faiss_index.read_index.side_effect = FileNotFoundError()  # Simulate new index
+        # Simulate new index
+        mock_faiss_index.read_index.side_effect = FileNotFoundError()
         # Execute
-        vs_manager = VectorStoreManager(user_id=sample_user_email, base_path=temp_dir)
+        vs_manager = VectorStoreManager(user_id=sample_user_email,
+                                      base_path=temp_dir)
         # Assert
         assert vs_manager.user_id == sample_user_email
         assert vs_manager.embedding_dim == 384
@@ -48,7 +55,8 @@ class TestVectorStoreManager:
         setup = mock_vector_store_setup
         setup['mock_index'].read_index.side_effect = FileNotFoundError()
         # Execute
-        vs_manager = VectorStoreManager(user_id=setup['user_email'], base_path=setup['temp_dir'])
+        vs_manager = VectorStoreManager(user_id=setup['user_email'],
+                                      base_path=setup['temp_dir'])
         documents = ["Test document 1", "Test document 2"]
         vs_manager.add_documents(documents)
         # Assert
@@ -64,7 +72,8 @@ class TestVectorStoreManager:
         setup = mock_vector_store_setup
         setup['mock_index'].read_index.side_effect = FileNotFoundError()
         # Execute
-        vs_manager = VectorStoreManager(user_id=setup['user_email'], base_path=setup['temp_dir'])
+        vs_manager = VectorStoreManager(user_id=setup['user_email'],
+                                      base_path=setup['temp_dir'])
         vs_manager.doc_mapping = {0: "Test doc 1", 1: "Test doc 2"}
         results = vs_manager.search("test query", k=2)
         # Assert
@@ -74,7 +83,8 @@ class TestVectorStoreManager:
         setup['mock_index'].search.assert_called_once()
 
     @pytest.mark.unit
-    def test_search_empty_index(self, mock_sentence_transformer, mock_faiss_index, temp_dir, sample_user_email):
+    def test_search_empty_index(self, mock_sentence_transformer, mock_faiss_index,
+                               temp_dir, sample_user_email):
         """Test searching empty vector store."""
         # Setup mocks
         mock_sentence_transformer.get_sentence_embedding_dimension.return_value = 384
@@ -84,20 +94,21 @@ class TestVectorStoreManager:
         vs_manager = VectorStoreManager(user_id=sample_user_email, base_path=temp_dir)
         results = vs_manager.search("test query")
         # Assert
-        assert results == []
+        assert not results
         mock_faiss_index.search.assert_not_called()
 
     @pytest.mark.unit
-    def test_clear_user_data(self, mock_sentence_transformer, mock_faiss_index, temp_dir, sample_user_email):
+    def test_clear_user_data(self, mock_sentence_transformer, mock_faiss_index,
+                            temp_dir, sample_user_email):
         """Test clearing user data from vector store."""
         # Setup mocks
         mock_sentence_transformer.get_sentence_embedding_dimension.return_value = 384
         # Create temporary files to simulate existing index
         index_path = os.path.join(temp_dir, f"faiss_index_{sample_user_email}.bin")
         mapping_path = os.path.join(temp_dir, f"faiss_mapping_{sample_user_email}.json")
-        with open(index_path, 'w') as f:
+        with open(index_path, 'w', encoding='utf-8') as f:
             f.write("mock index data")
-        with open(mapping_path, 'w') as f:
+        with open(mapping_path, 'w', encoding='utf-8') as f:
             f.write('{"0": "test doc"}')
         # Configure mock to return the index when files exist
         mock_faiss_index.read_index.return_value = mock_faiss_index
@@ -111,7 +122,8 @@ class TestVectorStoreManager:
         assert vs_manager.next_doc_id == 0
 
     @pytest.mark.unit
-    def test_get_all_documents(self, mock_sentence_transformer, mock_faiss_index, temp_dir, sample_user_email):
+    def test_get_all_documents(self, mock_sentence_transformer, mock_faiss_index,
+                              temp_dir, sample_user_email):
         """Test getting all documents from vector store."""
         # Setup mocks
         mock_sentence_transformer.get_sentence_embedding_dimension.return_value = 384

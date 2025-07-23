@@ -1,6 +1,8 @@
-import pytest
 from unittest.mock import Mock, patch
+import pytest
 from backend.assistant_app.services.user_data_service import UserDataService
+
+
 class TestUserDataService:
     """Test cases for UserDataService."""
 
@@ -9,12 +11,14 @@ class TestUserDataService:
         """Test UserDataService initialization."""
         service = UserDataService()
         assert service is not None
-        # The service doesn't have history_store as an attribute, it creates it when needed
 
     @pytest.mark.unit
     @patch('backend.assistant_app.services.user_data_service.HybridContextManager')
     @patch('backend.assistant_app.services.user_data_service.TaskManager')
-    def test_clear_user_data_success(self, mock_task_manager, mock_context_manager, sample_user_email):
+    def test_clear_user_data_success(self,
+                                     mock_task_manager,
+                                     mock_context_manager,
+                                     sample_user_email):
         """Test successful user data deletion."""
         # Setup mocks
         mock_context_instance = Mock()
@@ -49,7 +53,10 @@ class TestUserDataService:
     @pytest.mark.unit
     @patch('backend.assistant_app.services.user_data_service.HybridContextManager')
     @patch('backend.assistant_app.services.user_data_service.TaskManager')
-    def test_clear_user_data_with_errors(self, mock_task_manager, mock_context_manager, sample_user_email):
+    def test_clear_user_data_with_errors(self,
+                                         mock_task_manager,
+                                         mock_context_manager,
+                                         sample_user_email):
         """Test user data deletion with errors."""
         # Setup mocks to raise exceptions
         mock_context_manager.side_effect = Exception("Vector store error")
@@ -72,7 +79,10 @@ class TestUserDataService:
     @pytest.mark.unit
     @patch('backend.assistant_app.services.user_data_service.HybridContextManager')
     @patch('backend.assistant_app.services.user_data_service.TaskManager')
-    def test_clear_user_data_partial_success(self, mock_task_manager, mock_context_manager, sample_user_email):
+    def test_clear_user_data_partial_success(self,
+                                             mock_task_manager,
+                                             mock_context_manager,
+                                             sample_user_email):
         """Test user data deletion with partial success."""
         # Setup mocks - context manager succeeds, task manager fails
         mock_context_instance = Mock()
@@ -82,7 +92,9 @@ class TestUserDataService:
         }
         mock_context_manager.return_value = mock_context_instance
         mock_task_instance = Mock()
-        mock_task_instance.get_tasks.side_effect = Exception("Database connection failed")
+        mock_task_instance.get_tasks.side_effect = Exception(
+            "Database connection failed"
+        )
         mock_task_manager.return_value = mock_task_instance
         # Execute
         service = UserDataService()
@@ -99,7 +111,10 @@ class TestUserDataService:
     @pytest.mark.unit
     @patch('backend.assistant_app.services.user_data_service.HybridContextManager')
     @patch('backend.assistant_app.services.user_data_service.TaskManager')
-    def test_clear_user_data_no_tasks(self, mock_task_manager, mock_context_manager, sample_user_email):
+    def test_clear_user_data_no_tasks(self,
+                                      mock_task_manager,
+                                      mock_context_manager,
+                                      sample_user_email):
         """Test user data deletion when user has no tasks."""
         # Setup mocks
         mock_context_instance = Mock()
@@ -125,7 +140,10 @@ class TestUserDataService:
     @pytest.mark.unit
     @patch('backend.assistant_app.services.user_data_service.HybridContextManager')
     @patch('backend.assistant_app.services.user_data_service.TaskManager')
-    def test_clear_user_data_task_deletion_failure(self, mock_task_manager, mock_context_manager, sample_user_email):
+    def test_clear_user_data_task_deletion_failure(self,
+                                                   mock_task_manager,
+                                                   mock_context_manager,
+                                                   sample_user_email):
         """Test user data deletion when some task deletions fail."""
         # Setup mocks
         mock_context_instance = Mock()

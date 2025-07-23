@@ -62,7 +62,7 @@ clean:
 # Run linting checks
 lint:
 	flake8 backend/ tests/
-	pylint backend/ tests/
+	pylint backend/ tests/ --rcfile=.pylintrc
 
 # Format code
 format:

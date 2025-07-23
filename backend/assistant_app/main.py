@@ -1,7 +1,9 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from backend.assistant_app.api.v1.endpoints import chat, oauth, gmail_webhook, task_router, prompt_router, auth_router
+from backend.assistant_app.api.v1.endpoints import chat, oauth, gmail_webhook, task_router
+from backend.assistant_app.api.v1.endpoints import prompt_router, auth_router
+
 from backend.assistant_app.api_integration.db import engine, Base
 #  Import all models to ensure their tables are created
 from backend.assistant_app.models.task import Task
