@@ -13,6 +13,6 @@ class UserSession(Base):
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     expires_at = Column(DateTime(timezone=True), nullable=False)
     last_activity = Column(DateTime(timezone=True), server_default=func.now())
-    
+
     # Relationship
     user = relationship("User", backref="sessions")

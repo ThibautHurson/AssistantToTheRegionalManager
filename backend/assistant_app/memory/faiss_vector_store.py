@@ -5,13 +5,13 @@ from sentence_transformers import SentenceTransformer
 import json
 
 class VectorStoreManager:
-    def __init__(self, 
+    def __init__(self,
                  user_id: str = None,
-                 base_path="backend/assistant_app/memory/vector_stores", 
+                 base_path="backend/assistant_app/memory/vector_stores",
                  model_name='all-MiniLM-L6-v2'):
         self.user_id = user_id
         self.base_path = base_path
-        
+
         # Create user-specific paths
         if user_id:
             self.index_path = f"{base_path}/faiss_index_{user_id}.bin"
@@ -20,12 +20,12 @@ class VectorStoreManager:
             # Fallback to global store for backward compatibility
             self.index_path = f"{base_path}/faiss_index.bin"
             self.mapping_path = f"{base_path}/faiss_mapping.json"
-            
+
         self.model = SentenceTransformer(model_name)
-        
+
         # Get the embedding dimension from the model
         self.embedding_dim = self.model.get_sentence_embedding_dimension()
-        
+
         self.index = None
         self.doc_mapping = {}  # Maps index ID to document content
         self.next_doc_id = 0
@@ -35,7 +35,7 @@ class VectorStoreManager:
     def _load(self):
         # Ensure the directory exists
         os.makedirs(os.path.dirname(self.index_path), exist_ok=True)
-        
+
         # Load the FAISS index
         if os.path.exists(self.index_path):
             self.index = faiss.read_index(self.index_path)
@@ -68,18 +68,18 @@ class VectorStoreManager:
     def add_documents(self, documents: list[str]):
         if not documents:
             return
-            
+
         # Generate embeddings
         embeddings = self.model.encode(documents, convert_to_tensor=False)
-        
+
         # Add embeddings to FAISS index
         self.index.add(np.array(embeddings, dtype='float32'))
-        
+
         # Update document mapping
         for doc in documents:
             self.doc_mapping[self.next_doc_id] = doc
             self.next_doc_id += 1
-            
+
         self._save()
 
     def search(self, query: str, k: int = 5, threshold: float = 0.9) -> list[str]:
@@ -99,7 +99,7 @@ class VectorStoreManager:
 
     def get_all_documents(self) -> list[str]:
         return list(self.doc_mapping.values())
-        
+
     def clear_user_data(self):
         """Clear all data for the current user."""
         if os.path.exists(self.index_path):

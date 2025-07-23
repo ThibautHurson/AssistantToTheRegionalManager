@@ -46,7 +46,7 @@ def retry_on_rate_limit_async(
     return_none_on_404: bool = False
 ):
     """Decorator to retry async functions on rate limit errors and other specified errors.
-    
+
     Args:
         max_attempts: Maximum number of retry attempts
         wait_seconds: Base wait time between retries (will be multiplied by 2^attempt)
@@ -74,7 +74,7 @@ def retry_on_rate_limit_async(
                                 continue
                         print(f"HTTP error: {e}")
                         return None
-                    
+
                     # Handle SDKError (Mistral)
                     if isinstance(e, sdkerror.SDKError):
                         if "429" in str(e) or "rate limit" in str(e).lower():
@@ -82,7 +82,7 @@ def retry_on_rate_limit_async(
                             await asyncio.sleep(wait)
                             continue
                         raise
-                    
+
                     # Handle other specified exceptions
                     if retry_on and isinstance(e, retry_on):
                         if attempt < max_attempts - 1:
@@ -90,7 +90,7 @@ def retry_on_rate_limit_async(
                             print(f"Retrying after {wait}s (attempt {attempt + 1}/{max_attempts})")
                             await asyncio.sleep(wait)
                             continue
-                    
+
                     # If we get here, either we're out of retries or it's an unhandled error
                     if attempt == max_attempts - 1:
                         raise Exception(f"Retry failed after {max_attempts} attempts: {str(e)}")

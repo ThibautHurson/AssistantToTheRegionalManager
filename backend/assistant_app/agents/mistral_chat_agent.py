@@ -26,13 +26,11 @@ class MistralMCPChatAgent(BaseAgent):
         self.api_key = os.getenv("MISTRAL_KEY")
         if not self.api_key:
             raise ValueError("Mistral API key not found in environment variables")
-        
+
         self.client = Mistral(api_key=self.api_key)
         self.model = self.config.get("model", "mistral-small-latest")
-        
         self.max_steps = max_steps
         self.current_session_id = None
-
         self.exit_stack = AsyncExitStack()
         self.session: Optional[ClientSession] = None
         self.mcp_tools = []
@@ -67,11 +65,11 @@ class MistralMCPChatAgent(BaseAgent):
         self.stdio, self.write = stdio_transport
         self.session = await self.exit_stack.enter_async_context(ClientSession(self.stdio, self.write))
         await self.session.initialize()
-        
+
         # List and cache available tools
         response = await self.session.list_tools()
         self.mcp_tools = response.tools
-        
+
         print("\nConnected to server with tools:", [tool.name for tool in self.mcp_tools])
 
     async def connect_to_fetch_server(self):
@@ -87,16 +85,16 @@ class MistralMCPChatAgent(BaseAgent):
             fetch_stdio, fetch_write = fetch_transport
             self.fetch_session = await self.exit_stack.enter_async_context(ClientSession(fetch_stdio, fetch_write))
             await self.fetch_session.initialize()
-            
+
             # Get fetch server tools
             fetch_response = await self.fetch_session.list_tools()
             fetch_tools = fetch_response.tools
-            
+
             # Add fetch tools to the main tools list
             self.mcp_tools.extend(fetch_tools)
-            
+
             print(f"Connected to fetch server with tools: {[tool.name for tool in fetch_tools]}")
-            
+
         except Exception as e:
             print(f"Warning: Could not connect to fetch server: {e}")
             print("Web fetching capabilities will not be available")
@@ -106,11 +104,11 @@ class MistralMCPChatAgent(BaseAgent):
         """Clean up any remaining [REF] format references and ensure proper source attribution."""
         # Remove any [REF]tool_id[/REF] references
         content = re.sub(r'\[REF\][^\[\]]*\[/REF\]', '', content)
-        
+
         # If content contains URLs but no proper Sources section, add one
         url_pattern = r'https?://[^\s\)]+'
         urls = re.findall(url_pattern, content)
-        
+
         if urls and 'Sources:' not in content and '**Sources:**' not in content:
             # Extract domain names for source names
             sources = []
@@ -123,16 +121,16 @@ class MistralMCPChatAgent(BaseAgent):
                     sources.append(f"- [{source_name}]({url})")
                 except:
                     sources.append(f"- [Source]({url})")
-            
+
             if sources:
                 content += "\n\n**Sources:**\n" + "\n".join(sources)
-        
+
         return content
 
     async def run(self, query: str, session_id: str, user_email: str = None) -> str:
         """
         Multi-step chat with unified context management. Handles tool calls via MCP and returns the final assistant message.
-        
+
         Args:
             query: The user's input query
             session_id: Unique session identifier for context management
@@ -141,16 +139,16 @@ class MistralMCPChatAgent(BaseAgent):
         # Use session_id as user_email if not provided (backward compatibility)
         if user_email is None:
             user_email = session_id
-            
+
         # Get user-specific context manager
         context_manager = HybridContextManager(
             mcp_session=self.session,
             user_id=user_email
         )
-            
+
         # Get the complete context including dynamic system prompt
         llm_context = await context_manager.get_context(session_id, user_query=query)
-        
+
         # Add the current user query
         llm_context.append({"role": "user", "content": query})
         new_messages_this_turn = [{"role": "user", "content": query}]
@@ -172,7 +170,7 @@ class MistralMCPChatAgent(BaseAgent):
                     "parameters": params
                 }
             })
-        
+
         for step in range(self.max_steps):
             print(f"Step {step+1}")
             response = await self.call_mistral_with_retry(
@@ -193,7 +191,7 @@ class MistralMCPChatAgent(BaseAgent):
                     print(f"Tool arguments: {tool_call.function.arguments}")
                     tool_name = tool_call.function.name
                     tool_args = json.loads(tool_call.function.arguments)
-                    
+
                     # Add user_email for tools that need it
                     if tool_name not in ['smart_web_search', 'search_with_sources']:  # Web search tools don't need user_email
                         tool_args["user_email"] = user_email
@@ -205,7 +203,7 @@ class MistralMCPChatAgent(BaseAgent):
                             result = await self.fetch_session.call_tool(tool_name, tool_args)
                         else:
                             result = await self.session.call_tool(tool_name, tool_args)
-                        
+
                         # Convert the result to a string
                         content = result.content
                         if isinstance(content, list):
@@ -217,7 +215,7 @@ class MistralMCPChatAgent(BaseAgent):
                             content_str = content.text
                         else:
                             content_str = str(content)
-                            
+
                         tool_outputs.append({
                             "tool_call_id": tool_call.id,
                             "role": "tool",
@@ -238,7 +236,7 @@ class MistralMCPChatAgent(BaseAgent):
                                 error_context = "Provide helpful error recovery suggestions."
                         except:
                             error_context = "Provide helpful error recovery suggestions."
-                        
+
                         # Graceful error handling with contextual prompt
                         error_content = f"Tool '{tool_name}' failed: {str(e)}. {error_context}"
                         print(f"Tool error: {error_content}")
@@ -272,14 +270,14 @@ class MistralMCPChatAgent(BaseAgent):
     def clear_user_data(self, user_email: str):
         """Clear all data for a specific user (for privacy compliance)."""
         from backend.assistant_app.services.user_data_service import UserDataService
-        
+
         # Use the dedicated user data service for comprehensive deletion
         user_data_service = UserDataService()
         results = user_data_service.clear_user_data(user_email)
-        
+
         if results["success"]:
             print(f"Successfully cleared all data for user: {user_email}")
         else:
             print(f"Completed data deletion for user: {user_email} with errors: {results['errors']}")
-        
+
         return results

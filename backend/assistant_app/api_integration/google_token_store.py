@@ -59,7 +59,7 @@ def clear_credentials(user_email: str) -> bool:
     try:
         # Clear from Redis
         redis_client.delete(f"google_creds:{user_email}")
-        
+
         # Clear from file backup
         file_path = f'google_setup/token_store/{user_email}.json'
         if os.path.exists(file_path):
@@ -75,7 +75,7 @@ def load_credentials(user_email: str) -> Optional[Credentials]:
     print("in load_credentials")
     # Try Redis first
     creds_json = redis_client.get(f"google_creds:{user_email}")
-    
+
     # If not in Redis, try file backup
     if not creds_json:
         try:
@@ -123,7 +123,7 @@ def save_credentials(user_email: str, creds: Credentials):
     }
     # Save to Redis
     redis_client.set(f"google_creds:{user_email}", json.dumps(creds_dict))
-    
+
     # Backup to file
     os.makedirs('google_setup/token_store', exist_ok=True)
     with open(f'google_setup/token_store/{user_email}.json', 'w') as f:
@@ -143,7 +143,7 @@ def get_authorization_url(session_token: str) -> Tuple[Optional[str], Optional[F
     user = auth_service.validate_session(session_token)
     if not user:
         raise ValueError("Invalid session token")
-    
+
     existing = load_credentials(user.email)
     if existing and existing.valid:
         print("Valid credentials found")
@@ -157,7 +157,7 @@ def get_authorization_url(session_token: str) -> Tuple[Optional[str], Optional[F
 
     # Create Flow instance with explicit redirect URI that includes session_token
     redirect_uri_with_token = f"{REDIRECT_URI}?session_token={session_token}"
-    
+
     flow = Flow.from_client_config(
         client_config,
         scopes=SCOPES,
@@ -178,11 +178,11 @@ def get_authorization_url(session_token: str) -> Tuple[Optional[str], Optional[F
 
 def setup_gmail_watch(email: str, creds: Optional[Credentials] = None) -> bool:
     """Set up Gmail watch notifications for the user's inbox.
-    
+
     Args:
         email: The user's email address
         creds: Optional credentials to use. If not provided, will load them.
-        
+
     Returns:
         bool: True if watch was set up successfully, False otherwise
     """
@@ -193,9 +193,9 @@ def setup_gmail_watch(email: str, creds: Optional[Credentials] = None) -> bool:
         if not creds:
             print(f"No valid credentials found for {email}")
             return False
-            
+
         service = build("gmail", "v1", credentials=creds)
-        
+
         # Set up watch
         watch_response = service.users().watch(
             userId='me',
@@ -204,7 +204,7 @@ def setup_gmail_watch(email: str, creds: Optional[Credentials] = None) -> bool:
                 'topicName': f'projects/{GOOGLE_PROJECT_ID}/topics/{GOOGLE_TOPIC}'
             }
         ).execute()
-        
+
         print(f"Watch response: {watch_response}")
         return True
     except Exception as e:
@@ -222,7 +222,7 @@ def exchange_code_for_token(code: str, state: str, session_token: str) -> Option
         if not user:
             print("Invalid session token")
             return None
-        
+
         # Load client configuration
         client_config = load_client_config()
         if not client_config:
@@ -231,7 +231,7 @@ def exchange_code_for_token(code: str, state: str, session_token: str) -> Option
 
         # Create Flow instance with explicit redirect URI that includes session_token
         redirect_uri_with_token = f"{REDIRECT_URI}?session_token={session_token}"
-        
+
         flow = Flow.from_client_config(
             client_config,
             scopes=SCOPES,
@@ -258,18 +258,18 @@ def exchange_code_for_token(code: str, state: str, session_token: str) -> Option
                 return None
 
             print(f"Found email in ID token: {oauth_email}")
-            
+
             # Verify the OAuth email matches the user's email
             if oauth_email != user.email:
                 print(f"OAuth email {oauth_email} doesn't match user email {user.email}")
                 return None
-            
+
             # Save credentials using user email
             save_credentials(user.email, creds)
-            
+
             # Update user's OAuth status
             auth_service.update_oauth_status(user.id, True)
-            
+
             return creds
         except Exception as e:
             print(f"Error decoding ID token: {e}")

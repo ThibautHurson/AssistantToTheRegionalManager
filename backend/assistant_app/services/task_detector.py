@@ -29,11 +29,11 @@ class TaskDetector:
         A relevant task should be:
         1. Actionable (has a clear action to take)
         2. Important (E.g Taxes, Bills, Recruitment, Flight, Train, etc.). Do NOT include ads, newsletters, etc.
-        
+
         Email content:
         {content}
         """
-        
+
         response = await self.client.chat.complete_async(
             model=self.model,
             messages=[{"role": "user", "content": prompt}],
@@ -54,9 +54,9 @@ class TaskDetector:
                     }
                 }
         )
-        
+
         return json.loads(response.choices[0].message.content)["is_relevant"]
-    
+
     @retry_on_rate_limit_async(
         max_attempts=5,
         wait_seconds=1,
@@ -67,9 +67,9 @@ class TaskDetector:
         prompt = f"""Extract task details from this email content.
         Email content:
         {content}
-        
+
         Return only the JSON object, nothing else."""
-        
+
         response = await self.client.chat.complete_async(
             model=self.model,
             messages=[{"role": "user", "content": prompt}],
@@ -102,7 +102,7 @@ class TaskDetector:
                 }
             }
         )
-        
+
         try:
             return json.loads(response.choices[0].message.content)
         except:
@@ -116,9 +116,9 @@ class TaskDetector:
     async def process_email(self, email_content: str, email_subject: Optional[str] = None) -> Optional[Dict[str, Any]]:
         """Process an email and return task details if relevant."""
         full_content = f"Subject: {email_subject}\n\n{email_content}" if email_subject else email_content
-        
+
         if await self._is_task_relevant(full_content):
             task_details = await self._extract_task_details(full_content)
             return task_details
-        
+
         return None

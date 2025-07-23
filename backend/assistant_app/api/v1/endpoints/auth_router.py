@@ -37,7 +37,7 @@ def get_current_user(session_token: str) -> User:
 async def register(user_data: UserRegister):
     """Register a new user."""
     success, message = auth_service.register_user(user_data.email, user_data.password)
-    
+
     if success:
         return AuthResponse(success=True, message=message)
     else:
@@ -47,11 +47,11 @@ async def register(user_data: UserRegister):
 async def login(user_data: UserLogin):
     """Login a user."""
     session_token, message = auth_service.login_user(user_data.email, user_data.password)
-    
+
     if session_token:
         return AuthResponse(
-            success=True, 
-            message=message, 
+            success=True,
+            message=message,
             session_token=session_token,
             user_email=user_data.email
         )
@@ -62,7 +62,7 @@ async def login(user_data: UserLogin):
 async def logout(session_token: str):
     """Logout a user."""
     success = auth_service.logout_user(session_token)
-    
+
     if success:
         return AuthResponse(success=True, message="Logged out successfully")
     else:
@@ -72,10 +72,10 @@ async def logout(session_token: str):
 async def validate_session(session_token: str):
     """Validate a session and return user info."""
     user = auth_service.validate_session(session_token)
-    
+
     if not user:
         raise HTTPException(status_code=401, detail="Invalid or expired session")
-    
+
     return UserInfo(
         email=user.email,
         is_oauth_authenticated=user.is_oauth_authenticated,
@@ -104,12 +104,12 @@ async def clear_user_data(session_token: str):
                 status_code=401,
                 detail="Invalid or expired session. Please log in again."
             )
-        
+
         # Get the chat agent instance and clear user data
         from backend.assistant_app.api.v1.endpoints.chat import get_chat_agent
         chat_agent = get_chat_agent()
         results = chat_agent.clear_user_data(user.email)
-        
+
         if results["success"]:
             return {
                 "message": "User data cleared successfully",
@@ -137,4 +137,4 @@ async def clear_user_data(session_token: str):
         raise HTTPException(
             status_code=500,
             detail=f"Error clearing user data: {str(e)}"
-        ) 
+        )

@@ -17,30 +17,30 @@ def get_calendar_service(user_email: str):
         raise ValueError(f"No valid credentials found for {user_email}")
     return build("calendar", "v3", credentials=creds)
 
-def list_calendar_events(user_email: str, calendar_id: str = "primary", max_results: int = 10, 
+def list_calendar_events(user_email: str, calendar_id: str = "primary", max_results: int = 10,
                         time_min: Optional[str] = None, time_max: Optional[str] = None) -> str:
     """
     List calendar events for a user.
-    
+
     Args:
         user_email: The user's email address
         calendar_id: Calendar ID (default: "primary")
         max_results: Maximum number of events to return (default: 10)
         time_min: Start time in ISO format (default: now)
         time_max: End time in ISO format (default: 7 days from now)
-    
+
     Returns:
         str: JSON-formatted list of events
     """
     try:
         service = get_calendar_service(user_email)
-        
+
         # Set default time range if not provided
         if not time_min:
             time_min = datetime.utcnow().isoformat() + 'Z'
         if not time_max:
             time_max = (datetime.utcnow() + timedelta(days=7)).isoformat() + 'Z'
-        
+
         events_result = service.events().list(
             calendarId=calendar_id,
             timeMin=time_min,
@@ -49,21 +49,21 @@ def list_calendar_events(user_email: str, calendar_id: str = "primary", max_resu
             singleEvents=True,
             orderBy='startTime'
         ).execute()
-        
+
         events = events_result.get('items', [])
-        
+
         if not events:
             return json.dumps({
                 "message": "No upcoming events found",
                 "time_range": f"{time_min} to {time_max}",
                 "events": []
             })
-        
+
         formatted_events = []
         for event in events:
             start = event['start'].get('dateTime', event['start'].get('date'))
             end = event['end'].get('dateTime', event['end'].get('date'))
-            
+
             formatted_event = {
                 "id": event['id'],
                 "summary": event.get('summary', 'No title'),
@@ -76,13 +76,13 @@ def list_calendar_events(user_email: str, calendar_id: str = "primary", max_resu
                 "status": event.get('status', '')
             }
             formatted_events.append(formatted_event)
-        
+
         return json.dumps({
             "message": f"Found {len(formatted_events)} events",
             "time_range": f"{time_min} to {time_max}",
             "events": formatted_events
         }, indent=2)
-        
+
     except HttpError as error:
         return json.dumps({
             "error": f"Calendar API error: {error}",
@@ -99,7 +99,7 @@ def create_calendar_event(user_email: str, summary: str, start_time: str, end_ti
                          attendees: Optional[List[str]] = None, calendar_id: str = "primary") -> str:
     """
     Create a new calendar event.
-    
+
     Args:
         user_email: The user's email address
         summary: Event title/summary
@@ -109,13 +109,13 @@ def create_calendar_event(user_email: str, summary: str, start_time: str, end_ti
         location: Event location (optional)
         attendees: List of attendee email addresses (optional)
         calendar_id: Calendar ID (default: "primary")
-    
+
     Returns:
         str: JSON response with event details or error message
     """
     try:
         service = get_calendar_service(user_email)
-        
+
         event = {
             'summary': summary,
             'description': description,
@@ -129,16 +129,16 @@ def create_calendar_event(user_email: str, summary: str, start_time: str, end_ti
                 'timeZone': 'UTC',
             },
         }
-        
+
         if attendees:
             event['attendees'] = [{'email': email} for email in attendees]
-        
+
         event = service.events().insert(
             calendarId=calendar_id,
             body=event,
             sendUpdates='all' if attendees else 'none'
         ).execute()
-        
+
         return json.dumps({
             "message": "Event created successfully",
             "event": {
@@ -152,7 +152,7 @@ def create_calendar_event(user_email: str, summary: str, start_time: str, end_ti
                 "attendees": [attendee['email'] for attendee in event.get('attendees', [])]
             }
         }, indent=2)
-        
+
     except HttpError as error:
         return json.dumps({
             "error": f"Calendar API error: {error}",
@@ -170,7 +170,7 @@ def update_calendar_event(user_email: str, event_id: str, summary: Optional[str]
                          attendees: Optional[List[str]] = None, calendar_id: str = "primary") -> str:
     """
     Update an existing calendar event.
-    
+
     Args:
         user_email: The user's email address
         event_id: The ID of the event to update
@@ -181,16 +181,16 @@ def update_calendar_event(user_email: str, event_id: str, summary: Optional[str]
         location: New event location (optional)
         attendees: New list of attendee email addresses (optional)
         calendar_id: Calendar ID (default: "primary")
-    
+
     Returns:
         str: JSON response with updated event details or error message
     """
     try:
         service = get_calendar_service(user_email)
-        
+
         # First, get the existing event
         event = service.events().get(calendarId=calendar_id, eventId=event_id).execute()
-        
+
         # Update only the provided fields
         if summary is not None:
             event['summary'] = summary
@@ -218,14 +218,14 @@ def update_calendar_event(user_email: str, event_id: str, summary: Optional[str]
                 event['end']['dateTime'] = end_time
         if attendees is not None:
             event['attendees'] = [{'email': email} for email in attendees]
-        
+
         updated_event = service.events().update(
             calendarId=calendar_id,
             eventId=event_id,
             body=event,
             sendUpdates='all' if attendees else 'none'
         ).execute()
-        
+
         return json.dumps({
             "message": "Event updated successfully",
             "event": {
@@ -239,7 +239,7 @@ def update_calendar_event(user_email: str, event_id: str, summary: Optional[str]
                 "attendees": [attendee['email'] for attendee in updated_event.get('attendees', [])]
             }
         }, indent=2)
-        
+
     except HttpError as error:
         if error.resp.status == 404:
             return json.dumps({
@@ -259,28 +259,28 @@ def update_calendar_event(user_email: str, event_id: str, summary: Optional[str]
 def delete_calendar_event(user_email: str, event_id: str, calendar_id: str = "primary") -> str:
     """
     Delete a calendar event.
-    
+
     Args:
         user_email: The user's email address
         event_id: The ID of the event to delete
         calendar_id: Calendar ID (default: "primary")
-    
+
     Returns:
         str: JSON response with success or error message
     """
     try:
         service = get_calendar_service(user_email)
-        
+
         service.events().delete(
             calendarId=calendar_id,
             eventId=event_id
         ).execute()
-        
+
         return json.dumps({
             "message": "Event deleted successfully",
             "event_id": event_id
         })
-        
+
     except HttpError as error:
         if error.resp.status == 404:
             return json.dumps({
@@ -297,27 +297,27 @@ def delete_calendar_event(user_email: str, event_id: str, calendar_id: str = "pr
             "details": "Failed to delete event"
         })
 
-def search_calendar_events(user_email: str, query: str, calendar_id: str = "primary", 
+def search_calendar_events(user_email: str, query: str, calendar_id: str = "primary",
                           max_results: int = 10) -> str:
     """
     Search for calendar events using a text query.
-    
+
     Args:
         user_email: The user's email address
         query: Search query (e.g., "meeting", "lunch", "conference")
         calendar_id: Calendar ID (default: "primary")
         max_results: Maximum number of events to return (default: 10)
-    
+
     Returns:
         str: JSON-formatted list of matching events
     """
     try:
         service = get_calendar_service(user_email)
-        
+
         # Set time range for search (past 30 days to future 30 days)
         time_min = (datetime.utcnow() - timedelta(days=30)).isoformat() + 'Z'
         time_max = (datetime.utcnow() + timedelta(days=30)).isoformat() + 'Z'
-        
+
         events_result = service.events().list(
             calendarId=calendar_id,
             q=query,
@@ -327,9 +327,9 @@ def search_calendar_events(user_email: str, query: str, calendar_id: str = "prim
             singleEvents=True,
             orderBy='startTime'
         ).execute()
-        
+
         events = events_result.get('items', [])
-        
+
         if not events:
             return json.dumps({
                 "message": f"No events found matching '{query}'",
@@ -337,12 +337,12 @@ def search_calendar_events(user_email: str, query: str, calendar_id: str = "prim
                 "time_range": f"{time_min} to {time_max}",
                 "events": []
             })
-        
+
         formatted_events = []
         for event in events:
             start = event['start'].get('dateTime', event['start'].get('date'))
             end = event['end'].get('dateTime', event['end'].get('date'))
-            
+
             formatted_event = {
                 "id": event['id'],
                 "summary": event.get('summary', 'No title'),
@@ -355,14 +355,14 @@ def search_calendar_events(user_email: str, query: str, calendar_id: str = "prim
                 "status": event.get('status', '')
             }
             formatted_events.append(formatted_event)
-        
+
         return json.dumps({
             "message": f"Found {len(formatted_events)} events matching '{query}'",
             "search_query": query,
             "time_range": f"{time_min} to {time_max}",
             "events": formatted_events
         }, indent=2)
-        
+
     except HttpError as error:
         return json.dumps({
             "error": f"Calendar API error: {error}",
@@ -377,25 +377,25 @@ def search_calendar_events(user_email: str, query: str, calendar_id: str = "prim
 def get_calendar_list(user_email: str) -> str:
     """
     Get list of available calendars for a user.
-    
+
     Args:
         user_email: The user's email address
-    
+
     Returns:
         str: JSON-formatted list of calendars
     """
     try:
         service = get_calendar_service(user_email)
-        
+
         calendar_list = service.calendarList().list().execute()
         calendars = calendar_list.get('items', [])
-        
+
         if not calendars:
             return json.dumps({
                 "message": "No calendars found",
                 "calendars": []
             })
-        
+
         formatted_calendars = []
         for calendar in calendars:
             formatted_calendar = {
@@ -407,12 +407,12 @@ def get_calendar_list(user_email: str) -> str:
                 "selected": calendar.get('selected', False)
             }
             formatted_calendars.append(formatted_calendar)
-        
+
         return json.dumps({
             "message": f"Found {len(formatted_calendars)} calendars",
             "calendars": formatted_calendars
         }, indent=2)
-        
+
     except HttpError as error:
         return json.dumps({
             "error": f"Calendar API error: {error}",
@@ -422,4 +422,4 @@ def get_calendar_list(user_email: str) -> str:
         return json.dumps({
             "error": f"Unexpected error: {str(e)}",
             "calendars": []
-        }) 
+        })

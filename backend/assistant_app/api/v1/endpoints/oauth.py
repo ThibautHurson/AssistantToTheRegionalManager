@@ -14,22 +14,22 @@ async def authorize(session_token: str):
         if not session_token:
             print("No session_token provided")
             return JSONResponse(content={"error": "No session_token provided"}, status_code=400)
-            
+
         print(f"Checking credentials for session_token: {session_token}")
-        
+
         # Validate session and get user
         user = auth_service.validate_session(session_token)
         if not user:
             print("Invalid session token")
             return JSONResponse(content={"error": "Invalid session token"}, status_code=401)
-        
+
         # Check if already OAuth authenticated
         if user.is_oauth_authenticated:
             existing = load_credentials(user.email)
             if existing and existing.valid:
                 print("User already OAuth authenticated")
                 return JSONResponse(content={"message": "Already OAuth authenticated"}, status_code=200)
-        
+
         print("Generating authorization URL...")
         try:
             auth_url, flow = get_authorization_url(session_token)
@@ -47,11 +47,11 @@ async def authorize(session_token: str):
             import traceback
             print(f"Traceback: {traceback.format_exc()}")
             return JSONResponse(content={"error": str(e)}, status_code=500)
-            
+
         if auth_url is None:  # This means we're already authenticated
             print("Already OAuth authenticated (from get_authorization_url)")
             return JSONResponse(content={"message": "Already OAuth authenticated"}, status_code=200)
-            
+
         print(f"Returning auth URL: {auth_url}")
         return JSONResponse(content={"auth_url": auth_url}, status_code=200)
     except Exception as e:
@@ -66,10 +66,10 @@ def oauth2callback(request: Request):
     code = request.query_params.get("code")
     state = request.query_params.get("state") or "default"
     session_token = request.query_params.get("session_token")
-    
+
     if not code:
         return JSONResponse({"error": "Missing code"}, status_code=400)
-    
+
     if not session_token:
         return JSONResponse({"error": "Missing session_token"}, status_code=400)
 
@@ -87,14 +87,14 @@ async def clear_user_credentials(session_token: str):
         user = auth_service.validate_session(session_token)
         if not user:
             return JSONResponse(content={"error": "Invalid session token"}, status_code=401)
-        
+
         # Clear credentials
         success = clear_credentials(user.email)
         if success:
             return JSONResponse(content={"message": "Credentials cleared successfully. Please re-authenticate."})
         else:
             return JSONResponse(content={"error": "Failed to clear credentials"}, status_code=500)
-            
+
     except Exception as e:
         print(f"Error clearing credentials: {e}")
         return JSONResponse(content={"error": str(e)}, status_code=500)

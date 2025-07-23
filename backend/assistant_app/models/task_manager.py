@@ -48,7 +48,7 @@ class TaskManager:
     def __init__(self, user_email: str):
         self.user_email = user_email  # Using user email as user_id
 
-    def add_task(self, title: str, description: Optional[str] = None, 
+    def add_task(self, title: str, description: Optional[str] = None,
                  due_date: Optional[datetime] = None, priority: int = 1, msg_id: str = None) -> Task:
         db = next(get_db())
         try:
@@ -72,15 +72,15 @@ class TaskManager:
         db = next(get_db())
         try:
             query = db.query(TaskModel).filter(TaskModel.user_id == self.user_email)
-            
+
             if status:
                 query = query.filter(TaskModel.status == status)
             if priority is not None:
                 query = query.filter(TaskModel.priority == priority)
-                
+
             # Order by priority (high to low) and then by due date
             query = query.order_by(desc(TaskModel.priority), TaskModel.due_date)
-            
+
             tasks = query.all()
             return [Task(**task.__dict__) for task in tasks]
         finally:
@@ -93,14 +93,14 @@ class TaskManager:
                 TaskModel.id == task_id,
                 TaskModel.user_id == self.user_email
             ).first()
-            
+
             if not task:
                 return None
-                
+
             for key, value in kwargs.items():
                 if hasattr(task, key):
                     setattr(task, key, value)
-            
+
             db.commit()
             db.refresh(task)
             return Task(**task.__dict__)
@@ -131,7 +131,7 @@ class TaskManager:
                 .order_by(desc(TaskModel.priority))\
                 .order_by(TaskModel.due_date)\
                 .first()
-            
+
             if task:
                 return Task(**task.__dict__)
             return None

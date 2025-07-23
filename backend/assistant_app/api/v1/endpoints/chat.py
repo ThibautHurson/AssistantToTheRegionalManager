@@ -51,7 +51,7 @@ async def chat(
     4. Declare clear contracts — your route declares what it needs, and FastAPI wires it in.
     """
     print("Hit the chat endpoint")
-    
+
     # Validate session and get user
     user = auth_service.validate_session(payload.session_token)
     if not user:
@@ -59,7 +59,7 @@ async def chat(
             status_code=401,
             detail="Invalid or expired session. Please log in again."
         )
-    
+
     # Check if user has OAuth authentication for Gmail
     creds = load_credentials(user.email)
     if not creds or not creds.valid:
@@ -67,13 +67,13 @@ async def chat(
             status_code=401,
             detail="Gmail not authenticated. Please complete the Google OAuth process."
         )
-    
+
     # Generate or use provided chat session ID
     chat_session_id = payload.chat_session_id or f"{user.email}_{str(uuid.uuid4())[:8]}"
-    
+
     print(f"Using chat_session_id: {chat_session_id}")
     print(f"User email: {user.email}")
-    
+
     try:
         # Use the chat_session_id as the session_id for the LLM to ensure separate conversation histories
         response = await chat_agent.run(payload.input, chat_session_id, user.email)

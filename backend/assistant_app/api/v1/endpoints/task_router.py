@@ -94,4 +94,4 @@ async def delete_task(
     task_manager = get_task_manager(session_id)
     if not task_manager.delete_task(task_id):
         raise HTTPException(status_code=404, detail="Task not found")
-    return {"status": "success"} 
+    return {"status": "success"}
