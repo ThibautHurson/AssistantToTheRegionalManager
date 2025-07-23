@@ -257,7 +257,7 @@ class HybridContextManager:
                     i = j
                 else:
                     # Skip this assistant message AND all following tool responses to avoid orphaned tools
-                    print(f"Warning: Skipping assistant message with incomplete tool responses")
+                    print("Warning: Skipping assistant message with incomplete tool responses")
                     print(f"Expected {len(tool_call_ids)} responses, found {len(responses_found)}")
                     # Skip to after all tool responses to avoid orphaned tools
                     while j < len(context) and context[j].get("role") == "tool":
@@ -265,7 +265,7 @@ class HybridContextManager:
                     i = j
             elif msg.get("role") == "tool":
                 # Skip orphaned tool responses (they should only appear after assistant messages with tool_calls)
-                print(f"Warning: Skipping orphaned tool response")
+                print("Warning: Skipping orphaned tool response")
                 i += 1
             else:
                 validated_context.append(msg)
@@ -285,7 +285,7 @@ class HybridContextManager:
         deleted_count = self.history_store.delete_history(self.user_id)
 
         print(f"Completed memory data deletion for user: {self.user_id}")
-        print(f"- Vector store: Cleared")
+        print("- Vector store: Cleared")
         print(f"- Redis keys: {deleted_count} deleted")
 
         return {

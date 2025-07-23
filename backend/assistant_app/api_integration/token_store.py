@@ -11,8 +11,6 @@ def load_token(user_id, api_name):
     if not secrets:
         raise ValueError(f"No token found for user_id: {user_id}")
 
-    client_id = secrets[b"client_id"].decode()
-    client_secret = secrets[b"client_secret"].decode()
     token = secrets[b"token"].decode()
     return token
 

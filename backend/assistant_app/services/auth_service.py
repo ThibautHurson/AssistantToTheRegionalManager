@@ -1,9 +1,7 @@
 import bcrypt
 import secrets
-import uuid
 from datetime import datetime, timedelta
 from typing import Optional, Tuple, Dict, Any
-from sqlalchemy.orm import Session
 from backend.assistant_app.models.user import User
 from backend.assistant_app.models.user_session import UserSession
 from backend.assistant_app.api_integration.db import get_db

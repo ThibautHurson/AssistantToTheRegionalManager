@@ -2,8 +2,8 @@ import pytest
 import os
 import sys
 from unittest.mock import Mock, patch
-from typing import Generator
-  # Add the backend directory to the Python path
+
+# Add the backend directory to the Python path
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'backend'))
 @pytest.fixture
 def mock_redis():

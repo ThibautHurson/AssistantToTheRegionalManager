@@ -6,7 +6,7 @@ from mistralai.models import sdkerror
 import asyncio
 from functools import wraps
 from googleapiclient.errors import HttpError
-from typing import Callable, Any, Optional, Union, List, Type
+from typing import Callable, Any, Union, List, Type
 
 def handle_httpx_errors(func):
     @functools.wraps(func)
@@ -64,7 +64,7 @@ def retry_on_rate_limit_async(
                     # Handle HttpError (Gmail API)
                     if isinstance(e, HttpError):
                         if e.resp.status == 404 and return_none_on_404:
-                            print(f"Resource not found (404)")
+                            print("Resource not found (404)")
                             return None
                         if retry_on_status and e.resp.status in retry_on_status:
                             if attempt < max_attempts - 1:

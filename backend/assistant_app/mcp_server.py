@@ -2,11 +2,6 @@ from mcp.server.fastmcp import FastMCP
 import mcp.types as types
 import os
 import json
-import httpx
-import re
-from urllib.parse import urljoin, urlparse
-from bs4 import BeautifulSoup
-from typing import Optional, List
 
 mcp = FastMCP(
     "assistant-mcp-server",

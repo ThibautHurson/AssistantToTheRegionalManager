@@ -2,7 +2,6 @@ import pytest
 import os
 import tempfile
 import shutil
-from unittest.mock import Mock, patch, MagicMock
 from backend.assistant_app.memory.faiss_vector_store import VectorStoreManager
 
 class TestVectorStoreManager:

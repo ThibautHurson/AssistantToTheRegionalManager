@@ -1,6 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
-from typing import List
 
 from backend.assistant_app.agents.mistral_chat_agent import MistralMCPChatAgent
 

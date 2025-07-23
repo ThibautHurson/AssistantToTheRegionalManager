@@ -1,5 +1,5 @@
 import numpy as np
-from typing import List, Dict, Tuple
+from typing import List, Dict
 from sentence_transformers import SentenceTransformer
 import os
 import faiss

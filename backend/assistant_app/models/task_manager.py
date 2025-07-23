@@ -1,6 +1,5 @@
-from typing import List, Dict, Optional
+from typing import List, Optional
 from datetime import datetime
-from sqlalchemy.orm import Session
 from sqlalchemy import desc
 import uuid
 from fastapi import Query
