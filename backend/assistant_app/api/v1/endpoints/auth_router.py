@@ -129,6 +129,9 @@ async def clear_user_data(session_token: str):
                     "errors": results["errors"]
                 }
             }
+    except HTTPException:
+        # Re-raise HTTPExceptions as-is (like 401 for invalid session)
+        raise
     except Exception as e:
         print(f"Error clearing user data: {e}")
         raise HTTPException(
