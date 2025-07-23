@@ -114,7 +114,8 @@ async def gmail_webhook(request: Request):
 
     if not messages:
         print("No new messages to process")
-        return JSONResponse({"status": "ok", "messages_fetched": 0, "tasks_created": []}, status_code=200)
+        return JSONResponse({"status": "ok", "messages_fetched": 0, "tasks_created": []},
+                            status_code=200)
 
     results = []
     tasks_created = []
@@ -143,7 +144,8 @@ async def gmail_webhook(request: Request):
                 # Properly await the get_gmail call
                 msg_data, msg_history_id, labels = await get_gmail(service, msg_id)
                 if "INBOX" not in labels:
-                    print(f"Skipping message {msg_id} because it is not in INBOX (labels: {labels})")
+                    print(f"Skipping message {msg_id} because it is not in INBOX")
+                    print(f"Labels: {labels}")
                     continue
                 newest_history_id = max(newest_history_id, msg_history_id)
                 if not msg_data:
@@ -178,12 +180,14 @@ async def gmail_webhook(request: Request):
                         continue
 
                     if task_details:
-                        print(f"Task detected in email: {task_details.get('title', 'Untitled Task')}")
+                        print(f"Task detected in email: {task_details.get('title', 
+                                                                          'Untitled Task')}")
                         try:
                             # Use the correct msg_id and msg_data from the item in the queue
                             task = task_manager.add_task(
                                 title=task_details.get("title", "Task from email"),
-                                description=task_details.get("description", item['msg_data'][:200] + "..."),
+                                description=task_details.get("description",
+                                                             item['msg_data'][:200] + "..."),
                                 due_date=task_details.get("due_date"),
                                 priority=task_details.get("priority", 1),
                                 msg_id=item['msg_id']

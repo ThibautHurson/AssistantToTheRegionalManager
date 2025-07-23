@@ -1,5 +1,6 @@
 from fastapi import APIRouter, Request
 from fastapi.responses import JSONResponse
+import traceback
 from backend.assistant_app.api_integration.google_token_store import (
     get_authorization_url, exchange_code_for_token, load_credentials, clear_credentials
 )
@@ -28,7 +29,8 @@ async def authorize(session_token: str):
             existing = load_credentials(user.email)
             if existing and existing.valid:
                 print("User already OAuth authenticated")
-                return JSONResponse(content={"message": "Already OAuth authenticated"}, status_code=200)
+                return JSONResponse(content={"message": "Already OAuth authenticated"},
+                                    status_code=200)
 
         print("Generating authorization URL...")
         try:
@@ -36,7 +38,7 @@ async def authorize(session_token: str):
         except FileNotFoundError as e:
             print(f"Client secret file not found: {e}")
             return JSONResponse(
-                content={"error": "OAuth configuration error. Please ensure the client secret file is properly set up."},
+                content={"error": "OAuth config error. Check client secret file."},
                 status_code=500
             )
         except ValueError as e:
@@ -44,19 +46,18 @@ async def authorize(session_token: str):
             return JSONResponse(content={"error": "Invalid session token"}, status_code=401)
         except Exception as e:
             print(f"Error generating auth URL: {e}")
-            import traceback
             print(f"Traceback: {traceback.format_exc()}")
             return JSONResponse(content={"error": str(e)}, status_code=500)
 
         if auth_url is None:  # This means we're already authenticated
             print("Already OAuth authenticated (from get_authorization_url)")
-            return JSONResponse(content={"message": "Already OAuth authenticated"}, status_code=200)
+            return JSONResponse(content={"message": "Already OAuth authenticated"},
+                                status_code=200)
 
         print(f"Returning auth URL: {auth_url}")
         return JSONResponse(content={"auth_url": auth_url}, status_code=200)
     except Exception as e:
         print(f"Error in authorize endpoint: {e}")
-        import traceback
         print(f"Traceback: {traceback.format_exc()}")
         return JSONResponse(content={"error": str(e)}, status_code=500)
 
@@ -76,8 +77,7 @@ def oauth2callback(request: Request):
     creds = exchange_code_for_token(code, state, session_token)
     if creds:
         return JSONResponse({"message": "OAuth authentication successful"})
-    else:
-        return JSONResponse({"error": "OAuth authentication failed"}, status_code=400)
+    return JSONResponse({"error": "OAuth authentication failed"}, status_code=400)
 
 @router.post("/oauth/clear-credentials")
 async def clear_user_credentials(session_token: str):
@@ -91,10 +91,11 @@ async def clear_user_credentials(session_token: str):
         # Clear credentials
         success = clear_credentials(user.email)
         if success:
-            return JSONResponse(content={"message": "Credentials cleared successfully. Please re-authenticate."})
-        else:
-            return JSONResponse(content={"error": "Failed to clear credentials"}, status_code=500)
+            return JSONResponse(content={"message": "Credentials cleared successfully. "
+                                               "Please re-authenticate."})
+        return JSONResponse(content={"error": "Failed to clear credentials"}, status_code=500)
 
     except Exception as e:
         print(f"Error clearing credentials: {e}")
         return JSONResponse(content={"error": str(e)}, status_code=500)
+    

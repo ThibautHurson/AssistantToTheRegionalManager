@@ -23,10 +23,12 @@ class TaskDetector:
     )
     async def _is_task_relevant(self, content: str) -> bool:
         """Use Mistral to determine if the email content contains a relevant task."""
-        prompt = f"""Analyze this email content and determine if it contains a relevant task that needs to be tracked.
+        prompt = f"""Analyze this email content and determine if it contains a relevant 
+        task that needs to be tracked.
         A relevant task should be:
         1. Actionable (has a clear action to take)
-        2. Important (E.g Taxes, Bills, Recruitment, Flight, Train, etc.). Do NOT include ads, newsletters, etc.
+        2. Important (E.g Taxes, Bills, Recruitment, Flight, Train, etc.).
+        Do NOT include ads, newsletters, etc.
 
         Email content:
         {content}
@@ -36,21 +38,21 @@ class TaskDetector:
             model=self.model,
             messages=[{"role": "user", "content": prompt}],
             response_format={
-                    "type": "json_schema",
-                    "json_schema": {
-                        "name": "Task Relevance",
-                        "schema_definition": {
-                            "type": "object",
-                            "properties": {
-                                "is_relevant": {
-                                    "type": "boolean",
-                                    "description": "Whether the email content contains a relevant task"
-                                }
-                            },
-                            "required": ["is_relevant"]
-                        }
+                "type": "json_schema",
+                "json_schema": {
+                    "name": "Task Relevance",
+                    "schema_definition": {
+                        "type": "object",
+                        "properties": {
+                            "is_relevant": {
+                                "type": "boolean",
+                                "description": "Whether the email content contains a relevant task"
+                            }
+                        },
+                        "required": ["is_relevant"]
                     }
                 }
+            }
         )
 
         return json.loads(response.choices[0].message.content)["is_relevant"]
@@ -92,7 +94,10 @@ class TaskDetector:
                             },
                             "priority": {
                                 "type": "integer",
-                                "description": "The priority of the task.  0 (high), 1 (medium), 2 (low), or 3 (lowest). If no due date is mentioned, set the priority to 1."
+                                "description": (
+                                    "The priority of the task. 0 (high), 1 (medium), 2 (low), or 3 (lowest). "
+                                    "If no due date is mentioned, set the priority to 1."
+                                )
                             }
                         },
                         "required": ["title", "description", "priority"]
@@ -111,7 +116,10 @@ class TaskDetector:
                 "priority": 1
             }
 
-    async def process_email(self, email_content: str, email_subject: Optional[str] = None) -> Optional[Dict[str, Any]]:
+    async def process_email(self,
+                            email_content: str,
+                            email_subject: Optional[str] = None
+                            )-> Optional[Dict[str, Any]]:
         """Process an email and return task details if relevant."""
         full_content = f"Subject: {email_subject}\n\n{email_content}" if email_subject else email_content
 
@@ -120,3 +128,4 @@ class TaskDetector:
             return task_details
 
         return None
+    

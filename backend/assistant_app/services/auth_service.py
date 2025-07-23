@@ -1,11 +1,12 @@
-import bcrypt
 import secrets
 from datetime import datetime, timedelta
 from typing import Optional, Tuple, Dict, Any
+import bcrypt
 from backend.assistant_app.models.user import User
 from backend.assistant_app.models.user_session import UserSession
 from backend.assistant_app.api_integration.db import get_db
 from backend.assistant_app.utils.logger import auth_logger
+
 
 class AuthService:
     def __init__(self):
@@ -31,7 +32,8 @@ class AuthService:
             # Check if user already exists
             existing_user = db.query(User).filter(User.email == email).first()
             if existing_user:
-                auth_logger.log_auth_event("register", email, False, details={"reason": "user_exists"})
+                auth_logger.log_auth_event("register", email, False, 
+                                        details={"reason": "user_exists"})
                 return False, "User with this email already exists"
 
             # Create new user
@@ -45,7 +47,8 @@ class AuthService:
             db.commit()
             db.refresh(user)
 
-            auth_logger.log_auth_event("register", email, True, details={"user_id": user.id})
+            auth_logger.log_auth_event("register", email, True, 
+                                    details={"user_id": user.id})
             return True, "User registered successfully"
         finally:
             db.close()
@@ -57,12 +60,14 @@ class AuthService:
             # Find user
             user = db.query(User).filter(User.email == email).first()
             if not user:
-                auth_logger.log_auth_event("login", email, False, details={"reason": "user_not_found"})
+                auth_logger.log_auth_event("login", email, False, 
+                                        details={"reason": "user_not_found"})
                 return None, "Invalid email or password"
 
             # Verify password
             if not self.verify_password(password, user.password_hash):
-                auth_logger.log_auth_event("login", email, False, details={"reason": "invalid_password"})
+                auth_logger.log_auth_event("login", email, False, 
+                                        details={"reason": "invalid_password"})
                 return None, "Invalid email or password"
 
             # Create session
@@ -81,7 +86,9 @@ class AuthService:
             db.add(user_session)
             db.commit()
 
-            auth_logger.log_auth_event("login", email, True, details={"user_id": user.id, "session_token": session_token[:10] + "..."})
+            auth_logger.log_auth_event("login", email, True, 
+                                    details={"user_id": user.id, 
+                                           "session_token": session_token[:10] + "..."})
             return session_token, "Login successful"
         finally:
             db.close()
@@ -118,7 +125,8 @@ class AuthService:
             if session:
                 session.is_active = False
                 db.commit()
-                auth_logger.log_auth_event("logout", session.user.email, True, details={"session_token": session_token[:10] + "..."})
+                auth_logger.log_auth_event("logout", session.user.email, True, 
+                                        details={"session_token": session_token[:10] + "..."})
                 return True
 
             return False
@@ -133,7 +141,8 @@ class AuthService:
             if user:
                 user.is_oauth_authenticated = is_authenticated
                 db.commit()
-                auth_logger.log_user_action(user.email, "oauth_status_update", details={"is_authenticated": is_authenticated})
+                auth_logger.log_user_action(user.email, "oauth_status_update", 
+                                         details={"is_authenticated": is_authenticated})
                 return True
 
             return False
@@ -159,10 +168,12 @@ class AuthService:
                 "session_token": session_token,
                 "created_at": session.created_at.isoformat() if session.created_at else None,
                 "expires_at": session.expires_at.isoformat() if session.expires_at else None,
-                "last_activity": session.last_activity.isoformat() if session.last_activity else None
+                "last_activity": (session.last_activity.isoformat() 
+                                if session.last_activity else None)
             }
         finally:
             db.close()
+
 
 # Global instance
 auth_service = AuthService()
