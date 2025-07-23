@@ -210,8 +210,49 @@ AssistantToTheRegionalManager2/
 ├── tests/                   # Test suite
 ├── requirements-test.txt    # Test dependencies
 ├── pytest.ini             # Pytest configuration
+├── Makefile                # Development commands
+├── TESTING_GUIDE.md        # Comprehensive testing guide
 └── docker-compose.yml      # Container orchestration
 ```
+
+### Testing
+
+The project includes a comprehensive test suite with multiple testing options:
+
+#### Quick Test Commands
+```bash
+# Install test dependencies
+make install
+
+# Run all tests
+make test
+
+# Run unit tests only (fast)
+make test-unit
+
+# Run tests with coverage
+make test-cov
+
+# Run tests in parallel
+make test-fast
+
+# Run specific test file
+make test-file FILE=tests/test_api_endpoints.py
+
+# Run tests matching pattern
+make test-pattern PATTERN=test_user_data
+
+# Run with database services
+make test-with-db
+```
+
+#### Test Categories
+- **Unit Tests**: Fast, isolated tests for individual functions
+- **Integration Tests**: Tests requiring external services (database, Redis)
+- **API Tests**: End-to-end API endpoint testing
+- **Slow Tests**: Tests that take longer to run
+
+For detailed testing information, see [TESTING_GUIDE.md](TESTING_GUIDE.md).
 
 ### Running in Development Mode
 ```bash
