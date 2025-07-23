@@ -1,11 +1,12 @@
-from fastapi import APIRouter, Request
-from fastapi.responses import JSONResponse
 import base64
-from dotenv import load_dotenv
 import json
 import asyncio
-from googleapiclient.discovery import build
 from datetime import datetime
+from dotenv import load_dotenv
+from fastapi import APIRouter, Request
+from fastapi.responses import JSONResponse
+
+from googleapiclient.discovery import build
 
 from backend.assistant_app.agents.tools.gmail_tools import get_gmail
 from backend.assistant_app.api_integration.google_token_store import load_credentials

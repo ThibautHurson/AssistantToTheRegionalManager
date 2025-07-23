@@ -94,9 +94,8 @@ class RedisHistoryStore:
                 print(f"Deleted {deleted_count} Redis keys for user {user_id}")
                 print(f"Deleted keys: {keys_to_delete}")
                 return deleted_count
-            else:
-                print(f"No Redis keys found for user {user_id}")
-                return 0
+            print(f"No Redis keys found for user {user_id}")
+            return 0
 
         except Exception as e:
             print(f"Error deleting history for user {user_id}: {e}")
@@ -123,9 +122,8 @@ class RedisHistoryStore:
             if result > 0:
                 print(f"Deleted session history for {session_id}")
                 return True
-            else:
-                print(f"No session history found for {session_id}")
-                return False
+            print(f"No session history found for {session_id}")
+            return False
 
         except Exception as e:
             print(f"Error deleting session {session_id}: {e}")

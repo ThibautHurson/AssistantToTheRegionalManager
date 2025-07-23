@@ -93,9 +93,16 @@ def list_calendar_events(user_email: str, calendar_id: str = "primary", max_resu
             "events": []
         })
 
-def create_calendar_event(user_email: str, summary: str, start_time: str, end_time: str,
-                         description: Optional[str] = None, location: Optional[str] = None,
-                         attendees: Optional[List[str]] = None, calendar_id: str = "primary") -> str:
+def create_calendar_event(
+    user_email: str,
+    summary: str,
+    start_time: str,
+    end_time: str,
+    description: Optional[str] = None,
+    location: Optional[str] = None,
+    attendees: Optional[List[str]] = None,
+    calendar_id: str = "primary"
+) -> str:
     """
     Create a new calendar event.
 
@@ -163,10 +170,17 @@ def create_calendar_event(user_email: str, summary: str, start_time: str, end_ti
             "details": "Failed to create event"
         })
 
-def update_calendar_event(user_email: str, event_id: str, summary: Optional[str] = None,
-                         start_time: Optional[str] = None, end_time: Optional[str] = None,
-                         description: Optional[str] = None, location: Optional[str] = None,
-                         attendees: Optional[List[str]] = None, calendar_id: str = "primary") -> str:
+def update_calendar_event(
+    user_email: str,
+    event_id: str,
+    summary: Optional[str] = None,
+    start_time: Optional[str] = None,
+    end_time: Optional[str] = None,
+    description: Optional[str] = None,
+    location: Optional[str] = None,
+    attendees: Optional[List[str]] = None,
+    calendar_id: str = "primary"
+) -> str:
     """
     Update an existing calendar event.
 

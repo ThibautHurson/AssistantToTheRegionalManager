@@ -37,7 +37,8 @@ class TaskResponse(TaskBase):
     class Config:
         from_attributes = True
 
-def get_task_manager(session_id: str = Query(..., description="Session ID for authentication")) -> TaskManager:
+def get_task_manager(session_id: str = Query(..., description="Session ID for authentication")
+                     ) -> TaskManager:
     """Get task manager for authenticated user."""
     user = auth_service.validate_session(session_id)
     if not user:

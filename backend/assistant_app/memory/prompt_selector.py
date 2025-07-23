@@ -1,9 +1,9 @@
-import numpy as np
-from typing import List, Dict
-from sentence_transformers import SentenceTransformer
 import os
-import faiss
 import json
+from typing import List, Dict
+import numpy as np
+import faiss
+from sentence_transformers import SentenceTransformer
 
 class SemanticPromptSelector:
     """

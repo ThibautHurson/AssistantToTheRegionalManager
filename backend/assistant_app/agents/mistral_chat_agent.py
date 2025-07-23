@@ -144,12 +144,14 @@ class MistralMCPChatAgent(BaseAgent):
 
     async def run(self, query: str, session_id: str, user_email: str = None) -> str:
         """
-        Multi-step chat with unified context management. Handles tool calls via MCP and returns the final assistant message.
+        Multi-step chat with unified context management. Handles tool calls via MCP and
+        returns the final assistant message.
 
         Args:
             query: The user's input query
             session_id: Unique session identifier for context management
-            user_email: User's email address for tool calls (optional, defaults to session_id for backward compatibility)
+            user_email: User's email address for tool calls (optional, defaults to session_id 
+            for backward compatibility)
         """
         # Use session_id as user_email if not provided (backward compatibility)
         if user_email is None:

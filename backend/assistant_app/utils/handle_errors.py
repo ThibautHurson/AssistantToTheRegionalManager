@@ -1,12 +1,12 @@
 import functools
-import httpx
 import json
+import httpx
 import time
-from mistralai.models import sdkerror
 import asyncio
 from functools import wraps
-from googleapiclient.errors import HttpError
 from typing import Callable, Any, Union, List, Type
+from mistralai.models import sdkerror
+from googleapiclient.errors import HttpError
 
 def handle_httpx_errors(func):
     @functools.wraps(func)

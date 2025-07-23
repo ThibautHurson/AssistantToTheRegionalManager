@@ -98,4 +98,3 @@ async def clear_user_credentials(session_token: str):
     except Exception as e:
         print(f"Error clearing credentials: {e}")
         return JSONResponse(content={"error": str(e)}, status_code=500)
-    

@@ -46,7 +46,8 @@ class VectorStoreManager:
                 self.next_doc_id = max(self.doc_mapping.keys()) + 1 if self.doc_mapping else 0
             else:
                 # If mapping is missing, the index is out of sync. Reset.
-                print(f"Warning: Index found but mapping is missing for user {self.user_id}. Resetting index.")
+                print("Warning: Index found but mapping is missing for user "
+                      f"{self.user_id}. Resetting index.")
                 self._reset_index()
         else:
             # If index doesn't exist, create a new one
@@ -91,7 +92,8 @@ class VectorStoreManager:
         for dist, i in zip(distances[0], indices[0]):
             if i == -1 or i not in self.doc_mapping:
                 continue
-            # Since we are using L2 distance, the smaller the distance, the more similar the documents are.
+            # Since we are using L2 distance, the smaller the distance, 
+            # the more similar the documents are.
             if threshold is not None and dist > threshold:
                 continue  # Skip if distance is too large (not similar enough)
             results.append(self.doc_mapping[i])

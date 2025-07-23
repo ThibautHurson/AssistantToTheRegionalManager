@@ -1,8 +1,8 @@
-from fastapi import APIRouter, Depends, HTTPException
-from pydantic import BaseModel
 import json
 import os
 import uuid
+from fastapi import APIRouter, Depends, HTTPException
+from pydantic import BaseModel
 
 from backend.assistant_app.agents.mistral_chat_agent import MistralMCPChatAgent
 from backend.assistant_app.api_integration.google_token_store import load_credentials

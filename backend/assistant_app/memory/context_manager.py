@@ -309,7 +309,8 @@ class HybridContextManager:
                         validated_context.append(context[k])
                     i = j
                 else:
-                    # Skip this assistant message AND all following tool responses to avoid orphaned tools
+                    # Skip this assistant message AND all following tool responses to 
+                    # avoid orphaned tools
                     print(
                         "Warning: Skipping assistant message with incomplete tool responses"
                     )
@@ -322,7 +323,8 @@ class HybridContextManager:
                         j += 1
                     i = j
             elif msg.get("role") == "tool":
-                # Skip orphaned tool responses (they should only appear after assistant messages with tool_calls)
+                # Skip orphaned tool responses (they should only appear after
+                # assistant messages with tool_calls)
                 print("Warning: Skipping orphaned tool response")
                 i += 1
             else:
@@ -351,4 +353,3 @@ class HybridContextManager:
             "vector_store_cleared": True,
             "redis_keys_deleted": deleted_count,
         }
-    

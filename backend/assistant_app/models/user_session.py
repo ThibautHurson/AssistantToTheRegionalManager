@@ -1,7 +1,7 @@
+import uuid
 from sqlalchemy import Column, String, DateTime, Boolean, ForeignKey, func
 from sqlalchemy.orm import relationship
 from backend.assistant_app.api_integration.db import Base
-import uuid
 
 class UserSession(Base):
     __tablename__ = "user_sessions"
