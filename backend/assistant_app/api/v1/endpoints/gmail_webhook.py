@@ -176,11 +176,11 @@ async def gmail_webhook(request: Request):
                 for i, item in enumerate(processing_queue):
                     task_details = task_results[i]
                     if isinstance(task_details, Exception):
-                        print(f"Error in task detection for message {item['msg_id']}: {task_details}")
+                        print(f"Task detection error for {item['msg_id']}: {task_details}")
                         continue
 
                     if task_details:
-                        print(f"Task detected in email: {task_details.get('title', 
+                        print(f"Task detected in email: {task_details.get('title',
                                                                           'Untitled Task')}")
                         try:
                             # Use the correct msg_id and msg_data from the item in the queue

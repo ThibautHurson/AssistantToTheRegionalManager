@@ -5,11 +5,16 @@ import json
 
 mcp = FastMCP(
     "assistant-mcp-server",
-    description="Personal assistant server with Gmail, task management, and calendar capabilities"
+    description=(
+        "Personal assistant server with Gmail, task management, and "
+        "calendar capabilities"
+    )
 )
 
 # --- Gmail Tools ---
-from backend.assistant_app.agents.tools.gmail_tools import search_gmail, send_gmail, reply_to_gmail
+from backend.assistant_app.agents.tools.gmail_tools import (
+    search_gmail, send_gmail, reply_to_gmail
+)
 
 @mcp.tool()
 async def search_gmail_tool(query: str, user_email: str) -> str:
@@ -24,7 +29,9 @@ async def search_gmail_tool(query: str, user_email: str) -> str:
     return str(results)
 
 @mcp.tool()
-async def send_gmail_tool(to: str, subject: str, body: str, user_email: str) -> str:
+async def send_gmail_tool(
+    to: str, subject: str, body: str, user_email: str
+) -> str:
     """
     Send an email using Gmail.
     Args:
@@ -38,7 +45,9 @@ async def send_gmail_tool(to: str, subject: str, body: str, user_email: str) -> 
     return str(result)
 
 @mcp.tool()
-async def reply_to_gmail_tool(message_id: str, body: str, user_email: str) -> str:
+async def reply_to_gmail_tool(
+    message_id: str, body: str, user_email: str
+) -> str:
     """
     Reply to an existing email using Gmail.
     Args:
@@ -51,10 +60,18 @@ async def reply_to_gmail_tool(message_id: str, body: str, user_email: str) -> st
     return str(result)
 
 # --- Agent Task Tools ---
-from backend.assistant_app.agents.tools.agent_task_tools import add_task, delete_task, update_task, list_tasks, get_next_task
+from backend.assistant_app.agents.tools.agent_task_tools import (
+    add_task, delete_task, update_task, list_tasks, get_next_task
+)
 
 @mcp.tool()
-async def add_task_tool(user_email: str, title: str, description: str = None, due_date: str = None, priority: int = 1) -> str:
+async def add_task_tool(
+    user_email: str,
+    title: str,
+    description: str = None,
+    due_date: str = None,
+    priority: int = 1
+) -> str:
     """
     Add a new task to the task manager.
     Args:
@@ -81,7 +98,15 @@ async def delete_task_tool(user_email: str, task_id: str) -> str:
     return str(result)
 
 @mcp.tool()
-async def update_task_tool(user_email: str, task_id: str, title: str = None, description: str = None, due_date: str = None, priority: int = None, status: str = None) -> str:
+async def update_task_tool(
+    user_email: str,
+    task_id: str,
+    title: str = None,
+    description: str = None,
+    due_date: str = None,
+    priority: int = None,
+    status: str = None
+) -> str:
     """
     Update a task in the task manager.
     Args:
@@ -94,12 +119,22 @@ async def update_task_tool(user_email: str, task_id: str, title: str = None, des
     Returns:
         str: A message indicating the task was updated successfully or not found
     """
-    kwargs = {k: v for k, v in {"title": title, "description": description, "due_date": due_date, "priority": priority, "status": status}.items() if v is not None}
+    kwargs = {
+        k: v for k, v in {
+            "title": title,
+            "description": description,
+            "due_date": due_date,
+            "priority": priority,
+            "status": status
+        }.items() if v is not None
+    }
     result = update_task(user_email, task_id, **kwargs)
     return str(result)
 
 @mcp.tool()
-async def list_tasks_tool(user_email: str, status: str = None, priority: int = None) -> str:
+async def list_tasks_tool(
+    user_email: str, status: str = None, priority: int = None
+) -> str:
     """
     List all tasks for the user, optionally filtered by status or priority.
     Args:
@@ -123,13 +158,22 @@ async def get_next_task_tool(user_email: str) -> str:
 
 # --- Google Calendar Tools ---
 from backend.assistant_app.agents.tools.calendar_tools import (
-    list_calendar_events, create_calendar_event, update_calendar_event,
-    delete_calendar_event, search_calendar_events, get_calendar_list
+    list_calendar_events,
+    create_calendar_event,
+    update_calendar_event,
+    delete_calendar_event,
+    search_calendar_events,
+    get_calendar_list
 )
 
 @mcp.tool()
-async def list_calendar_events_tool(user_email: str, calendar_id: str = "primary", max_results: int = 10,
-                                   time_min: str = None, time_max: str = None) -> str:
+async def list_calendar_events_tool(
+    user_email: str,
+    calendar_id: str = "primary",
+    max_results: int = 10,
+    time_min: str = None,
+    time_max: str = None
+) -> str:
     """
     List calendar events for a user.
     Args:
@@ -140,12 +184,21 @@ async def list_calendar_events_tool(user_email: str, calendar_id: str = "primary
     Returns:
         str: JSON-formatted list of events
     """
-    return list_calendar_events(user_email, calendar_id, max_results, time_min, time_max)
+    return list_calendar_events(
+        user_email, calendar_id, max_results, time_min, time_max
+    )
 
 @mcp.tool()
-async def create_calendar_event_tool(user_email: str, summary: str, start_time: str, end_time: str,
-                                    description: str = None, location: str = None,
-                                    attendees: str = None, calendar_id: str = "primary") -> str:
+async def create_calendar_event_tool(
+    user_email: str,
+    summary: str,
+    start_time: str,
+    end_time: str,
+    description: str = None,
+    location: str = None,
+    attendees: str = None,
+    calendar_id: str = "primary"
+) -> str:
     """
     Create a new calendar event.
     Args:
@@ -164,13 +217,23 @@ async def create_calendar_event_tool(user_email: str, summary: str, start_time: 
     if attendees:
         attendee_list = [email.strip() for email in attendees.split(',')]
 
-    return create_calendar_event(user_email, summary, start_time, end_time, description, location, attendee_list, calendar_id)
+    return create_calendar_event(
+        user_email, summary, start_time, end_time, description,
+        location, attendee_list, calendar_id
+    )
 
 @mcp.tool()
-async def update_calendar_event_tool(user_email: str, event_id: str, summary: str = None,
-                                    start_time: str = None, end_time: str = None,
-                                    description: str = None, location: str = None,
-                                    attendees: str = None, calendar_id: str = "primary") -> str:
+async def update_calendar_event_tool(
+    user_email: str,
+    event_id: str,
+    summary: str = None,
+    start_time: str = None,
+    end_time: str = None,
+    description: str = None,
+    location: str = None,
+    attendees: str = None,
+    calendar_id: str = "primary"
+) -> str:
     """
     Update an existing calendar event.
     Args:
@@ -190,10 +253,15 @@ async def update_calendar_event_tool(user_email: str, event_id: str, summary: st
     if attendees:
         attendee_list = [email.strip() for email in attendees.split(',')]
 
-    return update_calendar_event(user_email, event_id, summary, start_time, end_time, description, location, attendee_list, calendar_id)
+    return update_calendar_event(
+        user_email, event_id, summary, start_time, end_time,
+        description, location, attendee_list, calendar_id
+    )
 
 @mcp.tool()
-async def delete_calendar_event_tool(user_email: str, event_id: str, calendar_id: str = "primary") -> str:
+async def delete_calendar_event_tool(
+    user_email: str, event_id: str, calendar_id: str = "primary"
+) -> str:
     """
     Delete a calendar event.
     Args:
@@ -205,8 +273,12 @@ async def delete_calendar_event_tool(user_email: str, event_id: str, calendar_id
     return delete_calendar_event(user_email, event_id, calendar_id)
 
 @mcp.tool()
-async def search_calendar_events_tool(user_email: str, query: str, calendar_id: str = "primary",
-                                     max_results: int = 10) -> str:
+async def search_calendar_events_tool(
+    user_email: str,
+    query: str,
+    calendar_id: str = "primary",
+    max_results: int = 10
+) -> str:
     """
     Search for calendar events using a text query.
     Args:
@@ -216,7 +288,9 @@ async def search_calendar_events_tool(user_email: str, query: str, calendar_id: 
     Returns:
         str: JSON-formatted list of matching events
     """
-    return search_calendar_events(user_email, query, calendar_id, max_results)
+    return search_calendar_events(
+        user_email, query, calendar_id, max_results
+    )
 
 @mcp.tool()
 async def get_calendar_list_tool(user_email: str) -> str:
@@ -250,12 +324,25 @@ def load_prompt_from_file(prompt_name: str) -> str:
 def get_default_prompt(prompt_name: str) -> str:
     """Fallback default prompts if files don't exist."""
     defaults = {
-        "system_base": "You are an intelligent personal assistant that helps users manage their tasks and emails.",
-        "task_management": "You are a task management expert. Help users organize their work effectively.",
-        "email_assistant": "You are an email communication expert. Help users manage their inbox effectively.",
-        "conversation_context": "Maintain conversation context and provide continuity in your responses.",
-        "error_handling": "When tools fail or errors occur, help users recover gracefully.",
-        "productivity_coach": "You are a productivity coach helping users optimize their workflow."
+        "system_base": (
+            "You are an intelligent personal assistant that helps users "
+            "manage their tasks and emails."
+        ),
+        "task_management": (
+            "You are a task management expert. Help users organize their work effectively."
+        ),
+        "email_assistant": (
+            "You are an email communication expert. Help users manage their inbox effectively."
+        ),
+        "conversation_context": (
+            "Maintain conversation context and provide continuity in your responses."
+        ),
+        "error_handling": (
+            "When tools fail or errors occur, help users recover gracefully."
+        ),
+        "productivity_coach": (
+            "You are a productivity coach helping users optimize their workflow."
+        )
     }
     return defaults.get(prompt_name, "Prompt template not found.")
 
@@ -266,7 +353,12 @@ async def get_system_base_prompt() -> types.GetPromptResult:
     """
     content = load_prompt_from_file("system_base")
     return types.GetPromptResult(
-        messages=[types.PromptMessage(role="assistant", content=types.TextContent(type="text", text=content))]
+        messages=[
+            types.PromptMessage(
+                role="assistant",
+                content=types.TextContent(type="text", text=content)
+            )
+        ]
     )
 
 @mcp.prompt("task_management")
@@ -276,7 +368,12 @@ async def get_task_management_prompt() -> types.GetPromptResult:
     """
     content = load_prompt_from_file("task_management")
     return types.GetPromptResult(
-        messages=[types.PromptMessage(role="assistant", content=types.TextContent(type="text", text=content))]
+        messages=[
+            types.PromptMessage(
+                role="assistant",
+                content=types.TextContent(type="text", text=content)
+            )
+        ]
     )
 
 @mcp.prompt("email_assistant")
@@ -286,7 +383,12 @@ async def get_email_assistant_prompt() -> types.GetPromptResult:
     """
     content = load_prompt_from_file("email_assistant")
     return types.GetPromptResult(
-        messages=[types.PromptMessage(role="assistant", content=types.TextContent(type="text", text=content))]
+        messages=[
+            types.PromptMessage(
+                role="assistant",
+                content=types.TextContent(type="text", text=content)
+            )
+        ]
     )
 
 @mcp.prompt("conversation_context")
@@ -296,7 +398,12 @@ async def get_conversation_context_prompt() -> types.GetPromptResult:
     """
     content = load_prompt_from_file("conversation_context")
     return types.GetPromptResult(
-        messages=[types.PromptMessage(role="assistant", content=types.TextContent(type="text", text=content))]
+        messages=[
+            types.PromptMessage(
+                role="assistant",
+                content=types.TextContent(type="text", text=content)
+            )
+        ]
     )
 
 @mcp.prompt("error_handling")
@@ -306,7 +413,12 @@ async def get_error_handling_prompt() -> types.GetPromptResult:
     """
     content = load_prompt_from_file("error_handling")
     return types.GetPromptResult(
-        messages=[types.PromptMessage(role="assistant", content=types.TextContent(type="text", text=content))]
+        messages=[
+            types.PromptMessage(
+                role="assistant",
+                content=types.TextContent(type="text", text=content)
+            )
+        ]
     )
 
 @mcp.prompt("productivity_coach")
@@ -316,7 +428,12 @@ async def get_productivity_coach_prompt() -> types.GetPromptResult:
     """
     content = load_prompt_from_file("productivity_coach")
     return types.GetPromptResult(
-        messages=[types.PromptMessage(role="assistant", content=types.TextContent(type="text", text=content))]
+        messages=[
+            types.PromptMessage(
+                role="assistant",
+                content=types.TextContent(type="text", text=content)
+            )
+        ]
     )
 
 @mcp.prompt("web_search_system")
@@ -394,7 +511,10 @@ async def list_available_prompts() -> str:
             "productivity_coach"
         ]
 
-    result = "Available prompt templates:\n" + "\n".join(f"- {prompt}" for prompt in available_prompts)
+    result = (
+        "Available prompt templates:\n" +
+        "\n".join(f"- {prompt}" for prompt in available_prompts)
+    )
     return result
 
 @mcp.tool()
@@ -437,7 +557,10 @@ async def create_prompt_template(prompt_name: str, content: str) -> str:
     prompt_file = os.path.join(prompt_dir, f"{prompt_name}.md")
 
     if os.path.exists(prompt_file):
-        return f"Prompt template '{prompt_name}' already exists. Use update_prompt_template to modify it."
+        return (
+            f"Prompt template '{prompt_name}' already exists. "
+            "Use update_prompt_template to modify it."
+        )
 
     try:
         with open(prompt_file, 'w', encoding='utf-8') as f:
@@ -448,7 +571,9 @@ async def create_prompt_template(prompt_name: str, content: str) -> str:
 
 # --- Web Search Tools ---
 @mcp.tool()
-async def search_with_sources(query: str, num_results: int = 3, include_citations: bool = True) -> str:
+async def search_with_sources(
+    query: str, num_results: int = 3, include_citations: bool = True
+) -> str:
     """
     Search the web and return results with proper source attribution and citations.
     This is the primary web search tool that provides comprehensive results with guidance.
@@ -493,12 +618,17 @@ async def search_with_sources(query: str, num_results: int = 3, include_citation
             for selector in selectors:
                 result_elements = soup.select(selector)
                 if result_elements:
-                    print(f"Found {len(result_elements)} results with selector: {selector}")
+                    print(
+                        f"Found {len(result_elements)} results with selector: {selector}"
+                    )
                     break
 
             if not result_elements:
                 # Fallback: look for any div with links
-                result_elements = soup.find_all('div', class_=lambda x: x and 'result' in x.lower())
+                result_elements = soup.find_all(
+                    'div',
+                    class_=lambda x: x and 'result' in x.lower()
+                )
 
             for result in result_elements[:num_results]:
                 # Title and DuckDuckGo redirect URL
@@ -512,12 +642,17 @@ async def search_with_sources(query: str, num_results: int = 3, include_citation
                     import urllib.parse
                     real_url = None
                     if 'uddg=' in ddg_url:
-                        real_url = urllib.parse.unquote(ddg_url.split('uddg=')[1].split('&')[0])
+                        real_url = urllib.parse.unquote(
+                            ddg_url.split('uddg=')[1].split('&')[0]
+                        )
                     elif ddg_url.startswith('http'):
                         real_url = ddg_url
                     else:
                         real_url = None
-                    snippet = snippet_elem.get_text(strip=True) if snippet_elem else ""
+                    snippet = (
+                        snippet_elem.get_text(strip=True)
+                        if snippet_elem else ""
+                    )
                     if real_url:
                         results.append({
                             "title": title,
@@ -544,22 +679,31 @@ async def search_with_sources(query: str, num_results: int = 3, include_citation
             # Build search results content
             search_results_content = ""
             for i, result in enumerate(results, 1):
-                search_results_content += f"### {i}. {result['title']}\n"
-                search_results_content += f"**URL**: {result['url']}\n"
-                search_results_content += f"**Domain**: {result['domain']}\n"
-                search_results_content += f"**Summary**: {result['snippet'][:200]}...\n\n"
+                search_results_content += (
+                    f"### {i}. {result['title']}\n"
+                    f"**URL**: {result['url']}\n"
+                    f"**Domain**: {result['domain']}\n"
+                    f"**Summary**: {result['snippet'][:200]}...\n\n"
+                )
 
             # Build citations content if requested
             citations_content = ""
             if include_citations:
                 citations_content += "## Sources\n\n"
                 for i, result in enumerate(results, 1):
-                    citations_content += f"{i}. [{result['title']}]({result['url']})\n"
-                    citations_content += f"   - **Domain**: {result['domain']}\n"
+                    citations_content += (
+                        f"{i}. [{result['title']}]({result['url']})\n"
+                        f"   - **Domain**: {result['domain']}\n"
+                    )
                     if result['snippet']:
-                        citations_content += f"   - **Summary**: {result['snippet'][:150]}...\n"
+                        citations_content += (
+                            f"   - **Summary**: {result['snippet'][:150]}...\n"
+                        )
                     citations_content += "\n"
-                citations_content += f"\n*Generated on {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}*"
+                citations_content += (
+                    f"\n*Generated on "
+                    f"{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}*"
+                )
 
             # Load and format the comprehensive template
             template = load_prompt_from_file("web_search_template")

@@ -7,13 +7,16 @@ import json
 
 class SemanticPromptSelector:
     """
-    Uses semantic similarity with FAISS to intelligently select relevant prompts based on user queries.
+    Uses semantic similarity with FAISS to intelligently select relevant prompts
+    based on user queries.
     """
 
-    def __init__(self,
-                 index_path="backend/assistant_app/memory/prompt_vector_store/prompt_selector_index.bin",
-                 mapping_path="backend/assistant_app/memory/prompt_vector_store/prompt_selector_mapping.json",
-                 model_name: str = "all-MiniLM-L6-v2"):
+    def __init__(
+        self,
+        index_path="backend/assistant_app/memory/prompt_vector_store/prompt_selector_index.bin",
+        mapping_path="backend/assistant_app/memory/prompt_vector_store/prompt_selector_mapping.json",
+        model_name: str = "all-MiniLM-L6-v2"
+    ):
         self.model = SentenceTransformer(model_name)
         self.embedding_dim = self.model.get_sentence_embedding_dimension()
 
@@ -32,13 +35,25 @@ class SemanticPromptSelector:
         """Initialize FAISS index with prompt embeddings."""
         # Define descriptions for each prompt type
         self.prompt_descriptions = {
-            "email_assistant": "Email management, Gmail operations, searching emails, sending emails, replying to emails, inbox organization",
-            "task_management": "Task creation, todo lists, priority management, deadlines, task organization, project management",
-            "productivity_coach": "Time management, workflow optimization, efficiency tips, scheduling, productivity advice",
-            "error_handling": "Error recovery, troubleshooting, problem solving, graceful failure handling",
-            "conversation_context": "Maintaining conversation flow, context awareness, continuity in dialogue",
-            "web_search_system": "Web research, news search, information gathering, content fetching, source attribution, multiple URL fetching, current events, real-time information",
-            "calendar_assistant": "Calendar management, scheduling events, meeting coordination, appointment booking, time management, event creation, calendar organization, schedule planning"
+            "email_assistant":
+                "Email management, Gmail operations, searching emails, sending emails, "
+                "replying to emails, inbox organization",
+            "task_management":
+                "Task creation, todo lists, priority management, deadlines, task "
+                "organization, project management",
+            "productivity_coach":
+                "Time management, workflow optimization, efficiency tips, scheduling, "
+                "productivity advice",
+            "error_handling":
+                "Error recovery, troubleshooting, problem solving, graceful failure handling",
+            "conversation_context":
+                "Maintaining conversation flow, context awareness, continuity in dialogue",
+            "web_search_system":
+                "Web research, news search, information gathering, content fetching, "
+                "source attribution, multiple URL fetching, current events, real-time information",
+            "calendar_assistant":
+                "Calendar management, scheduling events, meeting coordination, appointment "
+                "booking, time management, event creation, calendar organization, schedule planning"
         }
         self._load_or_create_index()
 
@@ -48,8 +63,12 @@ class SemanticPromptSelector:
             # Load existing index
             self.index = faiss.read_index(self.index_path)
             with open(self.mapping_path, 'r') as f:
-                self.prompt_mapping = {int(k): v for k, v in json.load(f).items()}
-            print(f"Loaded existing prompt selector index with {self.index.ntotal} prompts")
+                self.prompt_mapping = {
+                    int(k): v for k, v in json.load(f).items()
+                }
+            print(
+                f"Loaded existing prompt selector index with {self.index.ntotal} prompts"
+            )
         else:
             # Create new index
             self._create_new_index()
@@ -73,7 +92,9 @@ class SemanticPromptSelector:
 
             # Save the index and mapping
             self._save_index()
-            print(f"Created new prompt selector index with {len(prompt_names)} prompts")
+            print(
+                f"Created new prompt selector index with {len(prompt_names)} prompts"
+            )
 
     def _save_index(self):
         """Save FAISS index and mapping."""
@@ -82,7 +103,12 @@ class SemanticPromptSelector:
         with open(self.mapping_path, 'w') as f:
             json.dump(self.prompt_mapping, f)
 
-    def select_relevant_prompts(self, user_query: str, threshold: float = 0.3, max_prompts: int = 2) -> List[str]:
+    def select_relevant_prompts(
+        self,
+        user_query: str,
+        threshold: float = 0.3,
+        max_prompts: int = 2
+    ) -> List[str]:
         """
         Select relevant prompts based on semantic similarity using FAISS.
 
@@ -101,7 +127,9 @@ class SemanticPromptSelector:
         query_embedding = self.model.encode([user_query], convert_to_tensor=False)
 
         # Search FAISS index
-        distances, indices = self.index.search(np.array(query_embedding, dtype='float32'), max_prompts)
+        distances, indices = self.index.search(
+            np.array(query_embedding, dtype='float32'), max_prompts
+        )
 
         selected_prompts = []
         for dist, idx in zip(distances[0], indices[0]):
@@ -110,13 +138,16 @@ class SemanticPromptSelector:
 
             # Convert distance to similarity score (1 - normalized distance)
             # FAISS uses L2 distance, so we need to convert it
-            max_possible_distance = np.sqrt(self.embedding_dim * 2)  # Approximate max L2 distance
+            max_possible_distance = np.sqrt(self.embedding_dim * 2)
             similarity = 1 - (dist / max_possible_distance)
 
             if similarity >= threshold:
                 prompt_name = self.prompt_mapping[idx]
                 selected_prompts.append(prompt_name)
-                print(f"Selected prompt '{prompt_name}' with similarity: {similarity:.3f} (distance: {dist:.3f})")
+                print(
+                    f"Selected prompt '{prompt_name}' with similarity: "
+                    f"{similarity:.3f} (distance: {dist:.3f})"
+                )
 
         return selected_prompts
 
@@ -126,7 +157,9 @@ class SemanticPromptSelector:
             return {}
 
         query_embedding = self.model.encode([user_query], convert_to_tensor=False)
-        distances, indices = self.index.search(np.array(query_embedding, dtype='float32'), self.index.ntotal)
+        distances, indices = self.index.search(
+            np.array(query_embedding, dtype='float32'), self.index.ntotal
+        )
 
         scores = {}
         max_possible_distance = np.sqrt(self.embedding_dim * 2)
@@ -161,12 +194,28 @@ class HybridPromptSelector:
     def __init__(self):
         self.semantic_selector = SemanticPromptSelector()
         self.keyword_patterns = {
-            "email_assistant": ["email", "gmail", "search", "send", "reply", "inbox", "message", "mail"],
-            "task_management": ["task", "todo", "priority", "due", "deadline", "create", "add", "list", "update", "delete", "project"],
-            "productivity_coach": ["productivity", "time", "schedule", "organize", "efficient", "workflow", "optimize", "improve"],
-            "error_handling": ["error", "problem", "issue", "fix", "troubleshoot", "debug", "help"],
-            "conversation_context": ["remember", "context", "previous", "earlier", "before"],
-            "calendar_assistant": ["calendar", "schedule", "meeting", "appointment", "event", "booking", "agenda", "time slot", "availability", "reservation", "conference", "call", "interview"],
+            "email_assistant": [
+                "email", "gmail", "search", "send", "reply", "inbox", "message", "mail"
+            ],
+            "task_management": [
+                "task", "todo", "priority", "due", "deadline", "create", "add", "list",
+                "update", "delete", "project"
+            ],
+            "productivity_coach": [
+                "productivity", "time", "schedule", "organize", "efficient", "workflow",
+                "optimize", "improve"
+            ],
+            "error_handling": [
+                "error", "problem", "issue", "fix", "troubleshoot", "debug", "help"
+            ],
+            "conversation_context": [
+                "remember", "context", "previous", "earlier", "before"
+            ],
+            "calendar_assistant": [
+                "calendar", "schedule", "meeting", "appointment", "event", "booking",
+                "agenda", "time slot", "availability", "reservation", "conference",
+                "call", "interview"
+            ],
             "web_search_system": [
                 # Core web search terms
                 "news", "weather", "temperature", "current", "latest", "today", "recent",
@@ -193,8 +242,9 @@ class HybridPromptSelector:
                 "location", "place", "area", "region", "country", "city", "town",
                 "address", "map", "direction", "route", "path", "way",
                 # Sports and events
-                "world cup", "championship", "tournament", "competition", "match", "game",
-                "sport", "athletics", "olympics", "league", "team", "player", "athlete",
+                "world cup", "championship", "tournament", "competition", "match",
+                "game", "sport", "athletics", "olympics", "league", "team", "player",
+                "athlete",
                 # Business and finance
                 "business", "company", "corporate", "financial", "economic", "market",
                 "investment", "stock", "trading", "economy", "finance", "money",
@@ -202,18 +252,25 @@ class HybridPromptSelector:
                 "technology", "science", "research", "study", "discovery", "innovation",
                 "development", "advancement", "breakthrough", "invention", "patent",
                 # Entertainment and culture
-                "entertainment", "movie", "film", "music", "art", "culture", "celebrity",
-                "actor", "actress", "director", "artist", "musician", "performer",
+                "entertainment", "movie", "film", "music", "art", "culture",
+                "celebrity", "actor", "actress", "director", "artist", "musician",
+                "performer",
                 # Politics and government
                 "politics", "government", "election", "vote", "campaign", "policy",
-                "law", "legislation", "regulation", "official", "minister", "president",
+                "law", "legislation", "regulation", "official", "minister",
+                "president",
                 # Health and medicine
                 "health", "medical", "medicine", "doctor", "hospital", "treatment",
                 "disease", "illness", "symptom", "diagnosis", "cure", "vaccine"
             ]
         }
 
-    def select_prompts(self, user_query: str, use_semantic: bool = True, use_keywords: bool = True) -> List[str]:
+    def select_prompts(
+        self,
+        user_query: str,
+        use_semantic: bool = True,
+        use_keywords: bool = True
+    ) -> List[str]:
         """
         Select prompts using multiple strategies.
 
@@ -229,7 +286,9 @@ class HybridPromptSelector:
 
         # Semantic selection
         if use_semantic:
-            semantic_prompts = self.semantic_selector.select_relevant_prompts(user_query)
+            semantic_prompts = self.semantic_selector.select_relevant_prompts(
+                user_query
+            )
             selected_prompts.update(semantic_prompts)
 
         # Keyword selection
@@ -252,7 +311,9 @@ class HybridPromptSelector:
 
     def get_selection_debug_info(self, user_query: str) -> Dict:
         """Get debug information about prompt selection."""
-        semantic_scores = self.semantic_selector.get_prompt_similarity_scores(user_query)
+        semantic_scores = self.semantic_selector.get_prompt_similarity_scores(
+            user_query
+        )
         keyword_matches = self._keyword_selection(user_query)
 
         return {

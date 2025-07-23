@@ -25,7 +25,9 @@ class MistralMCPChatAgent(BaseAgent):
         self.config = config or {}
         self.api_key = os.getenv("MISTRAL_KEY")
         if not self.api_key:
-            raise ValueError("Mistral API key not found in environment variables")
+            raise ValueError(
+                "Mistral API key not found in environment variables"
+            )
 
         self.client = Mistral(api_key=self.api_key)
         self.model = self.config.get("model", "mistral-small-latest")
@@ -61,9 +63,13 @@ class MistralMCPChatAgent(BaseAgent):
             args=[server_script_path],
             env=os.environ.copy()
         )
-        stdio_transport = await self.exit_stack.enter_async_context(stdio_client(server_params))
+        stdio_transport = await self.exit_stack.enter_async_context(
+            stdio_client(server_params)
+        )
         self.stdio, self.write = stdio_transport
-        self.session = await self.exit_stack.enter_async_context(ClientSession(self.stdio, self.write))
+        self.session = await self.exit_stack.enter_async_context(
+            ClientSession(self.stdio, self.write)
+        )
         await self.session.initialize()
 
         # List and cache available tools
@@ -81,9 +87,13 @@ class MistralMCPChatAgent(BaseAgent):
                 args=["-m", "mcp_server_fetch"],
                 env=os.environ.copy()
             )
-            fetch_transport = await self.exit_stack.enter_async_context(stdio_client(fetch_server_params))
+            fetch_transport = await self.exit_stack.enter_async_context(
+                stdio_client(fetch_server_params)
+            )
             fetch_stdio, fetch_write = fetch_transport
-            self.fetch_session = await self.exit_stack.enter_async_context(ClientSession(fetch_stdio, fetch_write))
+            self.fetch_session = await self.exit_stack.enter_async_context(
+                ClientSession(fetch_stdio, fetch_write)
+            )
             await self.fetch_session.initialize()
 
             # Get fetch server tools
@@ -116,7 +126,12 @@ class MistralMCPChatAgent(BaseAgent):
                 try:
                     from urllib.parse import urlparse
                     domain = urlparse(url).netloc
-                    source_name = domain.replace('www.', '').replace('.com', '').replace('.org', '').replace('.net', '')
+                    source_name = (
+                        domain.replace('www.', '')
+                        .replace('.com', '')
+                        .replace('.org', '')
+                        .replace('.net', '')
+                    )
                     source_name = source_name.title()
                     sources.append(f"- [{source_name}]({url})")
                 except:
@@ -193,7 +208,7 @@ class MistralMCPChatAgent(BaseAgent):
                     tool_args = json.loads(tool_call.function.arguments)
 
                     # Add user_email for tools that need it
-                    if tool_name not in ['smart_web_search', 'search_with_sources']:  # Web search tools don't need user_email
+                    if tool_name not in ['smart_web_search', 'search_with_sources']:
                         tool_args["user_email"] = user_email
 
                     # Enhanced error handling for tool calls
@@ -276,8 +291,13 @@ class MistralMCPChatAgent(BaseAgent):
         results = user_data_service.clear_user_data(user_email)
 
         if results["success"]:
-            print(f"Successfully cleared all data for user: {user_email}")
+            print(
+                f"Successfully cleared all data for user: {user_email}"
+            )
         else:
-            print(f"Completed data deletion for user: {user_email} with errors: {results['errors']}")
+            print(
+                f"Completed data deletion for user: {user_email} "
+                f"with errors: {results['errors']}"
+            )
 
         return results

@@ -75,7 +75,8 @@ async def chat(
     print(f"User email: {user.email}")
 
     try:
-        # Use the chat_session_id as the session_id for the LLM to ensure separate conversation histories
+        # Use the chat_session_id as the session_id for the LLM to ensure separate
+        # conversation histories
         response = await chat_agent.run(payload.input, chat_session_id, user.email)
         return {"response": response, "chat_session_id": chat_session_id}
     except Exception as e:

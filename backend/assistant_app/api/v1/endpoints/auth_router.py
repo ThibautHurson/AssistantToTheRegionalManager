@@ -1,6 +1,6 @@
+from typing import Optional
 from fastapi import APIRouter, HTTPException, Depends
 from pydantic import BaseModel, EmailStr
-from typing import Optional
 from backend.assistant_app.services.auth_service import auth_service
 from backend.assistant_app.models.user import User
 
@@ -40,8 +40,7 @@ async def register(user_data: UserRegister):
 
     if success:
         return AuthResponse(success=True, message=message)
-    else:
-        raise HTTPException(status_code=400, detail=message)
+    raise HTTPException(status_code=400, detail=message)
 
 @router.post("/auth/login", response_model=AuthResponse)
 async def login(user_data: UserLogin):
@@ -55,8 +54,7 @@ async def login(user_data: UserLogin):
             session_token=session_token,
             user_email=user_data.email
         )
-    else:
-        raise HTTPException(status_code=401, detail=message)
+    raise HTTPException(status_code=401, detail=message)
 
 @router.post("/auth/logout", response_model=AuthResponse)
 async def logout(session_token: str):
@@ -65,8 +63,7 @@ async def logout(session_token: str):
 
     if success:
         return AuthResponse(success=True, message="Logged out successfully")
-    else:
-        raise HTTPException(status_code=400, detail="Invalid session token")
+    raise HTTPException(status_code=400, detail="Invalid session token")
 
 @router.get("/auth/validate", response_model=UserInfo)
 async def validate_session(session_token: str):

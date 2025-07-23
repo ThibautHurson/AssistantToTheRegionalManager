@@ -47,8 +47,14 @@ class TaskManager:
     def __init__(self, user_email: str):
         self.user_email = user_email  # Using user email as user_id
 
-    def add_task(self, title: str, description: Optional[str] = None,
-                 due_date: Optional[datetime] = None, priority: int = 1, msg_id: str = None) -> Task:
+    def add_task(
+        self,
+        title: str,
+        description: Optional[str] = None,
+        due_date: Optional[datetime] = None,
+        priority: int = 1,
+        msg_id: str = None
+    ) -> Task:
         db = next(get_db())
         try:
             task = TaskModel(

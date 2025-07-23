@@ -94,3 +94,4 @@ async def create_prompt(
         return {"message": extract_mcp_content(result)}
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error creating prompt: {str(e)}")
+    

@@ -92,7 +92,7 @@ async def clear_user_credentials(session_token: str):
         success = clear_credentials(user.email)
         if success:
             return JSONResponse(content={"message": "Credentials cleared successfully. "
-                                               "Please re-authenticate."})
+                "Please re-authenticate."})
         return JSONResponse(content={"error": "Failed to clear credentials"}, status_code=500)
 
     except Exception as e:

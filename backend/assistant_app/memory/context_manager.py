@@ -60,21 +60,36 @@ class HybridContextManager:
         if self.mcp_session:
             try:
                 result = await self.mcp_session.get_prompt("system_base")
-                base_prompt = self._extract_text_from_mcp_prompt(result.messages[0].content)
+                base_prompt = self._extract_text_from_mcp_prompt(
+                    result.messages[0].content
+                )
                 if not base_prompt:
-                    base_prompt = "You are an intelligent personal assistant that helps users manage their tasks and emails."
+                    base_prompt = (
+                        "You are an intelligent personal assistant that helps users "
+                        "manage their tasks and emails."
+                    )
             except Exception as e:
                 print(f"Could not fetch system_base prompt: {e}")
-                base_prompt = "You are an intelligent personal assistant that helps users manage their tasks and emails."
+                base_prompt = (
+                    "You are an intelligent personal assistant that helps users "
+                    "manage their tasks and emails."
+                )
         else:
-            base_prompt = "You are an intelligent personal assistant that helps users manage their tasks and emails."
+            base_prompt = (
+                "You are an intelligent personal assistant that helps users "
+                "manage their tasks and emails."
+            )
 
         # Add current datetime information to the base prompt
         try:
             from datetime import datetime
-            current_datetime = datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S UTC")
+            current_datetime = datetime.utcnow().strftime(
+                "%Y-%m-%d %H:%M:%S UTC"
+            )
 
-            datetime_info = f"\n\n**CURRENT DATETIME:** {current_datetime}\n\n"
+            datetime_info = (
+                f"\n\n**CURRENT DATETIME:** {current_datetime}\n\n"
+            )
 
             base_prompt += datetime_info
         except Exception as e:
@@ -93,7 +108,9 @@ class HybridContextManager:
             for prompt_name in selected_prompts:
                 try:
                     result = await self.mcp_session.get_prompt(prompt_name)
-                    prompt_text = self._extract_text_from_mcp_prompt(result.messages[0].content)
+                    prompt_text = self._extract_text_from_mcp_prompt(
+                        result.messages[0].content
+                    )
                     if prompt_text:
                         contextual_prompts.append(prompt_text)
                 except Exception as e:
@@ -116,18 +133,29 @@ class HybridContextManager:
             context.append({"role": "system", "content": system_prompt})
 
         # 2. Get current summary from Redis
-        summary = self.history_store.redis.get(self._get_summary_key(session_id)) or "No summary yet."
+        summary = (
+            self.history_store.redis.get(self._get_summary_key(session_id))
+            or "No summary yet."
+        )
 
         # 3. Get relevant historical messages from Vector Store (RAG)
         rag_msg = self.vector_store.search(user_query, k=3)
 
         # 4. Get recent messages (short-term memory)
         # Fetch a larger chunk for alignment
-        full_recent_history = self.history_store.get_history(session_id, self.short_term_memory_size * 3)
-        recent_messages = self.history_store.get_history(session_id, self.short_term_memory_size)
-        recent_messages = self._fix_tool_message_alignment(recent_messages, full_recent_history)
+        full_recent_history = self.history_store.get_history(
+            session_id, self.short_term_memory_size * 3
+        )
+        recent_messages = self.history_store.get_history(
+            session_id, self.short_term_memory_size
+        )
+        recent_messages = self._fix_tool_message_alignment(
+            recent_messages, full_recent_history
+        )
 
-        print(f"Found {len(recent_messages)} recent messages for session {session_id}")
+        print(
+            f"Found {len(recent_messages)} recent messages for session {session_id}"
+        )
 
         # 5. Assemble the informational context for the 'assistant' to consider
         informational_context = (
@@ -137,10 +165,20 @@ class HybridContextManager:
         if rag_msg:
             informational_context += "\n".join(f"- {msg}" for msg in rag_msg)
         else:
-            informational_context += "No specific relevant information found in long-term memory."
+            informational_context += (
+                "No specific relevant information found in long-term memory."
+            )
 
         # Add informational context as a user message
-        context.append({"role": "user", "content": f"Please use the following context to inform your response:\n{informational_context}"})
+        context.append(
+            {
+                "role": "user",
+                "content": (
+                    "Please use the following context to inform your response:\n"
+                    f"{informational_context}"
+                ),
+            }
+        )
 
         # 6. Add the recent, sequential conversation history
         context.extend(recent_messages)
@@ -153,7 +191,9 @@ class HybridContextManager:
         """
         Saves new messages and updates long-term memory structures.
         """
-        print(f"Saving {len(new_messages)} new messages for session_id: {session_id}")
+        print(
+            f"Saving {len(new_messages)} new messages for session_id: {session_id}"
+        )
 
         # 1. Save new messages to Redis list (short-term memory)
         self.history_store.append_messages(session_id, new_messages)
@@ -188,32 +228,45 @@ class HybridContextManager:
         num_new_msgs = self.summary_update_interval
         # Fetch from the list, starting from the beginning of the new chunk
         new_chunk_start_index = -num_new_msgs
-        raw_new_messages = self.history_store.redis.lrange(session_id, new_chunk_start_index, -1)
-        new_messages_to_summarize = [json.loads(msg) for msg in raw_new_messages]
+        raw_new_messages = self.history_store.redis.lrange(
+            session_id, new_chunk_start_index, -1
+        )
+        new_messages_to_summarize = [
+            json.loads(msg) for msg in raw_new_messages
+        ]
 
         # Create a combined text for the new summary
-        text_to_summarize = f"Previous summary:\n{current_summary}\n\nNew conversation turns:\n"
+        text_to_summarize = (
+            f"Previous summary:\n{current_summary}\n\nNew conversation turns:\n"
+        )
         text_to_summarize += "\n".join(
             f"{msg.get('role', 'unknown')}: {msg.get('content', '')}"
             for msg in new_messages_to_summarize if msg.get('content')
         )
 
         # Generate new summary
-        new_summary = await self.summarizer.summarize_conversation([{"role": "user", "content": text_to_summarize}])
+        new_summary = await self.summarizer.summarize_conversation(
+            [{"role": "user", "content": text_to_summarize}]
+        )
 
         # Save the updated summary to Redis
         if "Error" not in new_summary:
             self.history_store.redis.set(summary_key, new_summary)
             print(f"Summary for session {session_id} updated.")
 
-    def _fix_tool_message_alignment(self, messages: list[dict], full_history: list[dict]) -> list[dict]:
+    def _fix_tool_message_alignment(
+        self, messages: list[dict], full_history: list[dict]
+    ) -> list[dict]:
         # If the first message is a tool, prepend its parent assistant message from full_history
         if messages and messages[0].get("role") == "tool":
             # Find the index of this message in the full history
             first_tool_call_id = messages[0].get("tool_call_id")
             for i in range(len(full_history)):
                 msg = full_history[i]
-                if msg.get("role") == "assistant" and msg.get("tool_calls"):
+                if (
+                    msg.get("role") == "assistant"
+                    and msg.get("tool_calls")
+                ):
                     for tool_call in msg["tool_calls"]:
                         if tool_call.get("id") == first_tool_call_id:
                             # Prepend the parent assistant message
@@ -257,8 +310,13 @@ class HybridContextManager:
                     i = j
                 else:
                     # Skip this assistant message AND all following tool responses to avoid orphaned tools
-                    print("Warning: Skipping assistant message with incomplete tool responses")
-                    print(f"Expected {len(tool_call_ids)} responses, found {len(responses_found)}")
+                    print(
+                        "Warning: Skipping assistant message with incomplete tool responses"
+                    )
+                    print(
+                        f"Expected {len(tool_call_ids)} responses, "
+                        f"found {len(responses_found)}"
+                    )
                     # Skip to after all tool responses to avoid orphaned tools
                     while j < len(context) and context[j].get("role") == "tool":
                         j += 1
@@ -293,3 +351,4 @@ class HybridContextManager:
             "vector_store_cleared": True,
             "redis_keys_deleted": deleted_count,
         }
+    
