@@ -1,8 +1,6 @@
 import pytest
 from unittest.mock import Mock, patch
 from backend.assistant_app.services.user_data_service import UserDataService
-
-
 class TestUserDataService:
     """Test cases for UserDataService."""
 
@@ -25,7 +23,6 @@ class TestUserDataService:
             "redis_keys_deleted": 5
         }
         mock_context_manager.return_value = mock_context_instance
-
         mock_task_instance = Mock()
         mock_task_instance.get_tasks.return_value = [
             Mock(id="task_1"),
@@ -33,11 +30,9 @@ class TestUserDataService:
         ]
         mock_task_instance.delete_task.return_value = True
         mock_task_manager.return_value = mock_task_instance
-
         # Execute
         service = UserDataService()
         result = service.clear_user_data(sample_user_email)
-
         # Assert
         assert result["success"] is True
         assert result["user_id"] == sample_user_email
@@ -45,7 +40,6 @@ class TestUserDataService:
         assert result["redis_keys_deleted"] == 5
         assert result["database_tasks_deleted"] == 2
         assert len(result["errors"]) == 0
-
         # Verify calls
         mock_context_manager.assert_called_once()
         mock_task_manager.assert_called_once_with(sample_user_email)
@@ -59,15 +53,12 @@ class TestUserDataService:
         """Test user data deletion with errors."""
         # Setup mocks to raise exceptions
         mock_context_manager.side_effect = Exception("Vector store error")
-        
         mock_task_instance = Mock()
         mock_task_instance.get_tasks.side_effect = Exception("Database error")
         mock_task_manager.return_value = mock_task_instance
-
         # Execute
         service = UserDataService()
         result = service.clear_user_data(sample_user_email)
-
         # Assert
         assert result["success"] is False
         assert result["user_id"] == sample_user_email
@@ -90,15 +81,12 @@ class TestUserDataService:
             "redis_keys_deleted": 3
         }
         mock_context_manager.return_value = mock_context_instance
-
         mock_task_instance = Mock()
         mock_task_instance.get_tasks.side_effect = Exception("Database connection failed")
         mock_task_manager.return_value = mock_task_instance
-
         # Execute
         service = UserDataService()
         result = service.clear_user_data(sample_user_email)
-
         # Assert
         assert result["success"] is False  # Should be False due to task deletion error
         assert result["user_id"] == sample_user_email
@@ -120,15 +108,12 @@ class TestUserDataService:
             "redis_keys_deleted": 0
         }
         mock_context_manager.return_value = mock_context_instance
-
         mock_task_instance = Mock()
         mock_task_instance.get_tasks.return_value = []  # No tasks
         mock_task_manager.return_value = mock_task_instance
-
         # Execute
         service = UserDataService()
         result = service.clear_user_data(sample_user_email)
-
         # Assert
         assert result["success"] is True
         assert result["user_id"] == sample_user_email
@@ -149,7 +134,6 @@ class TestUserDataService:
             "redis_keys_deleted": 2
         }
         mock_context_manager.return_value = mock_context_instance
-
         mock_task_instance = Mock()
         mock_task_instance.get_tasks.return_value = [
             Mock(id="task_1"),
@@ -159,11 +143,9 @@ class TestUserDataService:
         # First task deletion succeeds, second fails, third succeeds
         mock_task_instance.delete_task.side_effect = [True, False, True]
         mock_task_manager.return_value = mock_task_instance
-
         # Execute
         service = UserDataService()
         result = service.clear_user_data(sample_user_email)
-
         # Assert
         assert result["success"] is True  # Should still be True as vector store cleared
         assert result["user_id"] == sample_user_email
@@ -171,6 +153,5 @@ class TestUserDataService:
         assert result["redis_keys_deleted"] == 2
         assert result["database_tasks_deleted"] == 2  # Only 2 successful deletions
         assert len(result["errors"]) == 0
-
         # Verify task deletion was attempted for all tasks
-        assert mock_task_instance.delete_task.call_count == 3 
+        assert mock_task_instance.delete_task.call_count == 3
