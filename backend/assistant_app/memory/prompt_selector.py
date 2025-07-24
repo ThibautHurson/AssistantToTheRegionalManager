@@ -13,8 +13,14 @@ class SemanticPromptSelector:
 
     def __init__(
         self,
-        index_path="backend/assistant_app/memory/prompt_vector_store/prompt_selector_index.bin",
-        mapping_path="backend/assistant_app/memory/prompt_vector_store/prompt_selector_mapping.json",
+        index_path=(
+            "backend/assistant_app/memory/prompt_vector_store/"
+            "prompt_selector_index.bin"
+        ),
+        mapping_path=(
+            "backend/assistant_app/memory/prompt_vector_store/"
+            "prompt_selector_mapping.json"
+        ),
         model_name: str = "all-MiniLM-L6-v2"
     ):
         self.model = SentenceTransformer(model_name)

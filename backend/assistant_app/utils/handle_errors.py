@@ -1,10 +1,10 @@
 import functools
 import json
-import httpx
 import time
 import asyncio
 from functools import wraps
 from typing import Callable, Any, Union, List, Type
+import httpx
 from mistralai.models import sdkerror
 from googleapiclient.errors import HttpError
 
@@ -16,7 +16,12 @@ def handle_httpx_errors(func):
             response.raise_for_status()
             return response.json()
         except httpx.HTTPStatusError as e:
-            return json.dumps({"error": f"HTTP Status Error {e.response.status_code} - {e.response.text}"})
+            return json.dumps(
+                {
+                    "error": f"HTTP Status Error {e.response.status_code} - "
+                    f"{e.response.text}"
+                }
+            )
         except httpx.RequestError as e:
             return json.dumps({"error": f"Request Error - {e}"})
         except Exception as e:
@@ -69,7 +74,8 @@ def retry_on_rate_limit_async(
                         if retry_on_status and e.resp.status in retry_on_status:
                             if attempt < max_attempts - 1:
                                 wait = wait_seconds * (2 ** attempt)
-                                print(f"Retrying after {wait}s (attempt {attempt + 1}/{max_attempts})")
+                                print(f"Retrying after {wait}s (attempt "
+                                      f"{attempt + 1}/{max_attempts})")
                                 await asyncio.sleep(wait)
                                 continue
                         print(f"HTTP error: {e}")

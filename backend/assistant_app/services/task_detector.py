@@ -94,7 +94,8 @@ class TaskDetector:
                             "priority": {
                                 "type": "integer",
                                 "description": (
-                                    "The priority of the task. 0 (high), 1 (medium), 2 (low), or 3 (lowest). "
+                                    "The priority of the task. "
+                                    "0 (high), 1 (medium), 2 (low), or 3 (lowest). "
                                     "If no due date is mentioned, set the priority to 1."
                                 )
                             }
@@ -120,7 +121,7 @@ class TaskDetector:
                             email_subject: Optional[str] = None
                             ) -> Optional[Dict[str, Any]]:
         """Process an email and return task details if relevant."""
-        full_content = (f"Subject: {email_subject}\n\n{email_content}" 
+        full_content = (f"Subject: {email_subject}\n\n{email_content}"
                         if email_subject else email_content)
 
         if await self._is_task_relevant(full_content):

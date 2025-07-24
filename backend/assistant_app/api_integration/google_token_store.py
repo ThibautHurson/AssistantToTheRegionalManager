@@ -8,9 +8,10 @@ from googleapiclient.discovery import build
 import redis
 from dotenv import load_dotenv
 import httpx
-from backend.assistant_app.utils.redis_saver import save_to_redis
 from datetime import datetime
+from backend.assistant_app.utils.redis_saver import save_to_redis
 from backend.assistant_app.services.auth_service import auth_service
+
 load_dotenv()
 
 # Redis configuration
@@ -129,9 +130,6 @@ def save_credentials(user_email: str, creds: Credentials):
     with open(f'google_setup/token_store/{user_email}.json', 'w') as f:
         json.dump(creds_dict, f)
 
-def save_to_redis(key: str, field: str, value: str):
-    """Save a value to Redis with a key and field."""
-    redis_client.set(f"{key}:{field}", value)
 
 def get_authorization_url(session_token: str) -> Tuple[Optional[str], Optional[Flow]]:
     """

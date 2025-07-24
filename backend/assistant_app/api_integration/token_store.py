@@ -1,5 +1,5 @@
-import redis
 import os
+import redis
 
 redis_url = os.getenv("REDIS_URL", "redis://redis:6379")
 r = redis.Redis.from_url(redis_url)

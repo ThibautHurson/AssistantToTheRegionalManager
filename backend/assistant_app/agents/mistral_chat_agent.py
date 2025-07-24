@@ -1,14 +1,14 @@
-from mistralai import Mistral
 import os
-from dotenv import load_dotenv
 import json
-from typing import Optional
-from contextlib import AsyncExitStack
-from mcp import ClientSession, StdioServerParameters
-from mcp.client.stdio import stdio_client
-from mistralai.models import sdkerror
 import copy
 import re
+from dotenv import load_dotenv
+from contextlib import AsyncExitStack
+from typing import Optional
+from mistralai import Mistral
+from mistralai.models import sdkerror
+from mcp import ClientSession, StdioServerParameters
+from mcp.client.stdio import stdio_client
 
 from backend.assistant_app.agents.base_agent import BaseAgent
 from backend.assistant_app.memory.context_manager import HybridContextManager
@@ -267,7 +267,7 @@ class MistralMCPChatAgent(BaseAgent):
                 # Append tool results to both contexts
                 llm_context.extend(tool_outputs)
                 new_messages_this_turn.extend(tool_outputs)
-                continue  # Go to next LLM step with tool outputs
+                # Go to next LLM step with tool outputs
 
             # Step 2: LLM gives a final answer (no tools)
             else:

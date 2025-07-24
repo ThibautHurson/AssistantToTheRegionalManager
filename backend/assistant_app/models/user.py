@@ -1,7 +1,7 @@
-from sqlalchemy import Column, String, Boolean, DateTime, func
+import uuid
+from sqlalchemy import Column, String, Boolean, DateTime
 from sqlalchemy.sql import func
 from backend.assistant_app.api_integration.db import Base
-import uuid
 
 class User(Base):
     __tablename__ = "users"

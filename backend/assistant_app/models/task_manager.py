@@ -1,7 +1,7 @@
+import uuid
 from typing import List, Optional
 from datetime import datetime
 from sqlalchemy import desc
-import uuid
 from fastapi import Query
 
 from backend.assistant_app.models.task import Task as TaskModel

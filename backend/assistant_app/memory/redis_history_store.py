@@ -1,6 +1,6 @@
-import redis
-import json
 import os
+import json
+import redis
 
 class RedisHistoryStore:
     def __init__(self, ttl=None):

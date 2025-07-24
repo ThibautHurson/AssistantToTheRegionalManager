@@ -3,6 +3,7 @@ from fastapi import APIRouter, HTTPException, Depends
 from pydantic import BaseModel, EmailStr
 from backend.assistant_app.services.auth_service import auth_service
 from backend.assistant_app.models.user import User
+from backend.assistant_app.api.v1.endpoints.prompt_router import get_chat_agent
 
 router = APIRouter()
 
@@ -103,7 +104,6 @@ async def clear_user_data(session_token: str):
             )
 
         # Get the chat agent instance and clear user data
-        from backend.assistant_app.api.v1.endpoints.chat import get_chat_agent
         chat_agent = get_chat_agent()
         results = chat_agent.clear_user_data(user.email)
 
@@ -116,16 +116,15 @@ async def clear_user_data(session_token: str):
                     "database_tasks_deleted": results["database_tasks_deleted"]
                 }
             }
-        else:
-            return {
-                "message": "User data cleared with some errors",
-                "details": {
-                    "vector_store_cleared": results["vector_store_cleared"],
-                    "redis_keys_deleted": results["redis_keys_deleted"],
-                    "database_tasks_deleted": results["database_tasks_deleted"],
-                    "errors": results["errors"]
-                }
+        return {
+            "message": "User data cleared with some errors",
+            "details": {
+                "vector_store_cleared": results["vector_store_cleared"],
+                "redis_keys_deleted": results["redis_keys_deleted"],
+                "database_tasks_deleted": results["database_tasks_deleted"],
+                "errors": results["errors"]
             }
+        }
     except HTTPException:
         # Re-raise HTTPExceptions as-is (like 401 for invalid session)
         raise

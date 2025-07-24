@@ -1,9 +1,10 @@
 from typing import Optional, List
 from datetime import datetime, timedelta
-from googleapiclient.discovery import build
-from googleapiclient.errors import HttpError
 import json
 from dotenv import load_dotenv
+from googleapiclient.discovery import build
+from googleapiclient.errors import HttpError
+
 
 from backend.assistant_app.api_integration.google_token_store import load_credentials
 

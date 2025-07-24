@@ -3,6 +3,21 @@ import json
 from mcp.server.fastmcp import FastMCP
 import mcp.types as types
 
+from backend.assistant_app.agents.tools.gmail_tools import (
+    search_gmail, send_gmail, reply_to_gmail
+)
+from backend.assistant_app.agents.tools.agent_task_tools import (
+    add_task, delete_task, update_task, list_tasks, get_next_task
+)
+from backend.assistant_app.agents.tools.calendar_tools import (
+    list_calendar_events,
+    create_calendar_event,
+    update_calendar_event,
+    delete_calendar_event,
+    search_calendar_events,
+    get_calendar_list
+)
+
 mcp = FastMCP(
     "assistant-mcp-server",
     description=(
@@ -12,9 +27,6 @@ mcp = FastMCP(
 )
 
 # --- Gmail Tools ---
-from backend.assistant_app.agents.tools.gmail_tools import (
-    search_gmail, send_gmail, reply_to_gmail
-)
 
 @mcp.tool()
 async def search_gmail_tool(query: str, user_email: str) -> str:
@@ -60,9 +72,7 @@ async def reply_to_gmail_tool(
     return str(result)
 
 # --- Agent Task Tools ---
-from backend.assistant_app.agents.tools.agent_task_tools import (
-    add_task, delete_task, update_task, list_tasks, get_next_task
-)
+
 
 @mcp.tool()
 async def add_task_tool(
@@ -157,15 +167,6 @@ async def get_next_task_tool(user_email: str) -> str:
     return str(result)
 
 # --- Google Calendar Tools ---
-from backend.assistant_app.agents.tools.calendar_tools import (
-    list_calendar_events,
-    create_calendar_event,
-    update_calendar_event,
-    delete_calendar_event,
-    search_calendar_events,
-    get_calendar_list
-)
-
 @mcp.tool()
 async def list_calendar_events_tool(
     user_email: str,

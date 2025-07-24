@@ -309,7 +309,7 @@ class HybridContextManager:
                         validated_context.append(context[k])
                     i = j
                 else:
-                    # Skip this assistant message AND all following tool responses to 
+                    # Skip this assistant message AND all following tool responses to
                     # avoid orphaned tools
                     print(
                         "Warning: Skipping assistant message with incomplete tool responses"

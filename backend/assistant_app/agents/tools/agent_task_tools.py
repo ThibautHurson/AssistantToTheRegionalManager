@@ -70,7 +70,11 @@ def update_task(user_email: str, task_id: str, **kwargs) -> str:
     return f"Task {task_id} not found"
 
 
-def list_tasks(user_email: str, status: Optional[str] = None, priority: Optional[int] = None) -> str:
+def list_tasks(
+    user_email: str,
+    status: Optional[str] = None,
+    priority: Optional[int] = None
+) -> str:
     """List all tasks for the user.
 
     Args:

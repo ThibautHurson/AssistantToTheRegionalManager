@@ -1,8 +1,8 @@
+import os
+import json
 import faiss
 import numpy as np
-import os
 from sentence_transformers import SentenceTransformer
-import json
 
 class VectorStoreManager:
     def __init__(self,
@@ -92,7 +92,7 @@ class VectorStoreManager:
         for dist, i in zip(distances[0], indices[0]):
             if i == -1 or i not in self.doc_mapping:
                 continue
-            # Since we are using L2 distance, the smaller the distance, 
+            # Since we are using L2 distance, the smaller the distance,
             # the more similar the documents are.
             if threshold is not None and dist > threshold:
                 continue  # Skip if distance is too large (not similar enough)
