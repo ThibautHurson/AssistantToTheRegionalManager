@@ -1,0 +1,39 @@
+[MASTER]
+# Add the backend directory to the Python path
+init-hook='import sys; sys.path.append("backend")'
+
+[MESSAGES CONTROL]
+# Disable some overly strict warnings
+disable=
+    C0114,  # missing-module-docstring
+    C0115,  # missing-class-docstring
+    C0116,  # missing-function-docstring
+    C0103,  # invalid-name (for short variable names)
+    R0903,  # too-few-public-methods
+    R0913,  # too-many-arguments
+    R0914,  # too-many-locals
+    W0621,  # redefined-outer-name (for pytest fixtures)
+    W0612,  # unused-variable (for test variables)
+    W0613,  # unused-argument (for callback functions)
+
+[REPORTS]
+# Set the output format
+output-format=text
+
+# Include a score in the output
+score=yes
+
+[FORMAT]
+# Maximum number of characters on a single line
+max-line-length=100
+
+# Maximum number of lines in a module
+max-module-lines=1000
+
+[BASIC]
+# Regular expression which should only match function or class names
+good-names=i,j,k,ex,Run,_,id
+
+[MISCELLANEOUS]
+# List of note tags to take into consideration
+notes= 

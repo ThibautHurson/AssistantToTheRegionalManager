@@ -1,6 +1,6 @@
-from mistralai import Mistral
 import os
 from dotenv import load_dotenv
+from mistralai import Mistral
 
 load_dotenv()
 
@@ -40,4 +40,4 @@ class SummarizationManager:
             return response.choices[0].message.content.strip()
         except Exception as e:
             print(f"Error during summarization: {e}")
-            return f"Error summarizing conversation: {e}" 
+            return f"Error summarizing conversation: {e}"

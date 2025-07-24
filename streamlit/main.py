@@ -18,8 +18,8 @@ REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379")
 redis_client = redis.Redis.from_url(REDIS_URL, decode_responses=True)
 
 st.set_page_config(
-    page_title="Chatbot", 
-    page_icon="🤖", 
+    page_title="Chatbot",
+    page_icon="🤖",
     layout="wide",
     initial_sidebar_state="expanded")
 
@@ -174,7 +174,7 @@ def check_oauth_auth():
     """Check if user has OAuth authentication for Gmail"""
     if not st.session_state.authenticated or "session_token" not in st.session_state:
         return False
-    
+
     try:
         auth_response = httpx.get(
             f"{FASTAPI_URI}/authorize",
@@ -183,7 +183,7 @@ def check_oauth_auth():
         )
         auth_response.raise_for_status()
         auth_data = auth_response.json()
-        
+
         if "auth_url" in auth_data:
             st.markdown("### 🔗 Gmail Authentication Required")
             st.markdown("To use Gmail features, please authenticate with Google:")
@@ -204,56 +204,56 @@ def show_chat():
     # Check OAuth authentication first
     if not check_oauth_auth():
         return
-    
+
     # Check if we have a current session
     if not st.session_state.current_session_id:
         st.info("👈 Start a new chat from the sidebar to begin!")
         return
-    
+
     current_session = st.session_state.chat_sessions[st.session_state.current_session_id]
     chat_history = current_session["history"]
-    
+
     # Display current session info
     st.markdown(f"### 💬 {current_session['name']}")
-    
+
     # Clean message display controls
     total_messages = len(chat_history)
-    
+
     # Message display controls
     if total_messages > 5:  # Only show controls if there are many messages
         col1, col2, col3 = st.columns([2, 1, 1])
-        
+
         with col1:
             st.info(f"📋 Showing last {st.session_state.message_limit} of {total_messages} messages")
-        
+
         with col2:
             # Show "Show 5 More" button if there are more messages to load
             if total_messages > st.session_state.message_limit:
                 if st.button("Show 5 More"):
                     st.session_state.message_limit = min(st.session_state.message_limit + 5, total_messages)
                     st.rerun()
-        
+
         with col3:
             # Show "Show Recent" button if we're showing more than 5 messages
             if st.session_state.message_limit > 5:
                 if st.button("Show Recent"):
                     st.session_state.message_limit = 5
                     st.rerun()
-    
+
     # Chat container for messages
     with st.container():
         st.markdown('<div class="chat-container">', unsafe_allow_html=True)
-        
+
         # Determine which messages to display
         messages_to_display = chat_history[-st.session_state.message_limit:]
-        
+
         # Display chat messages in normal order (oldest at top, newest at bottom)
         for sender, msg in messages_to_display:
             if sender == "You":
                 st.markdown(f'<div class="chat-bubble user-bubble"><b>You:</b> {msg}</div>', unsafe_allow_html=True)
             else:
                 st.markdown(f'**Bot:** {msg}', unsafe_allow_html=False)
-                
+
         st.markdown('</div>', unsafe_allow_html=True)
 
     # Chat input at the bottom
@@ -266,7 +266,7 @@ def show_chat():
             height=100,
         )
         send_clicked = st.form_submit_button("Send")
-    
+
     if send_clicked and user_input:
         try:
             print("Going to call /chat endpoint")
@@ -275,10 +275,10 @@ def show_chat():
 
             # Prepare request payload
             payload = {
-                "session_token": st.session_state.session_token, 
+                "session_token": st.session_state.session_token,
                 "input": user_input
             }
-            
+
             # Add chat session ID if we have one
             if st.session_state.current_session_id:
                 payload["chat_session_id"] = st.session_state.current_session_id
@@ -292,24 +292,24 @@ def show_chat():
             res.raise_for_status()
             response_data = res.json()
             bot_reply = response_data["response"]
-            
+
             # Store the chat session ID if provided
             if "chat_session_id" in response_data:
                 st.session_state.current_session_id = response_data["chat_session_id"]
 
             chat_history.append(("Bot", bot_reply))
-            
+
             # Update session name with first user message if it's the default name
             if current_session["name"].startswith("Chat ") and len(chat_history) == 2:
                 # Use first few words of the first user message as session name
                 first_words = user_input[:30].strip()
                 if len(first_words) > 0:
                     current_session["name"] = first_words + ("..." if len(user_input) > 30 else "")
-            
+
             # Save updated chat sessions to Redis
             if st.session_state.user_email:
                 save_chat_sessions_to_redis(st.session_state.user_email, st.session_state.chat_sessions)
-            
+
             st.rerun() # Rerun to show the bot's reply
         except Exception as e:
             st.error(f"Error: {e}")
@@ -320,13 +320,13 @@ def show_prompt_manager():
     """Display prompt management interface"""
     st.title("🎭 Prompt Manager")
     st.markdown("Manage and view MCP prompt templates that control the assistant's behavior.")
-    
+
     # Wrap in div with CSS class for specific styling
     st.markdown('<div class="prompt-manager">', unsafe_allow_html=True)
-    
+
     # Create tabs for different prompt management features
     tab1, tab2, tab3 = st.tabs(["View Prompts", "Edit Prompts", "Create New"])
-    
+
     with tab1:
         # Get available prompts using direct API
         try:
@@ -336,26 +336,26 @@ def show_prompt_manager():
             )
             response.raise_for_status()
             prompts_data = response.json()
-            
+
             if "prompts" in prompts_data:
                 prompts_text = prompts_data["prompts"]
-                
+
                 # Parse the prompts text to extract individual prompts
                 if "Available prompt templates:" in prompts_text:
                     prompt_lines = prompts_text.split("Available prompt templates:")[1].strip().split("\n")
                     prompts = [line.strip("- ") for line in prompt_lines if line.strip().startswith("-")]
-                    
+
                     st.subheader("Available Prompt Templates")
-                    
+
                     # Create tabs for each prompt
                     if prompts:
                         prompt_names = [prompt.strip() for prompt in prompts]
                         prompt_tabs = st.tabs(prompt_names)
-                        
+
                         for i, (tab, prompt_name) in enumerate(zip(prompt_tabs, prompt_names)):
                             with tab:
                                 st.markdown(f"**{prompt_name}**")
-                                
+
                                 # Get the actual prompt content using direct API
                                 try:
                                     content_response = httpx.get(
@@ -364,7 +364,7 @@ def show_prompt_manager():
                                     )
                                     content_response.raise_for_status()
                                     content_data = content_response.json()
-                                    
+
                                     if "prompt" in content_data:
                                         # Display the prompt content in a text area
                                         st.text_area(
@@ -376,7 +376,7 @@ def show_prompt_manager():
                                         )
                                     else:
                                         st.error("No prompt content received")
-                                        
+
                                 except Exception as e:
                                     st.error(f"Error retrieving prompt content: {e}")
                     else:
@@ -385,14 +385,14 @@ def show_prompt_manager():
                     st.info("Could not parse prompt templates.")
             else:
                 st.info("No prompt data received.")
-                
+
         except Exception as e:
             st.error(f"Error connecting to prompt manager: {e}")
-    
+
     with tab2:
         st.subheader("Edit Existing Prompts")
         st.markdown("Modify existing prompt templates.")
-        
+
         # Get current prompts for selection using direct API
         try:
             response = httpx.get(
@@ -401,17 +401,17 @@ def show_prompt_manager():
             )
             response.raise_for_status()
             prompts_data = response.json()
-            
+
             if "prompts" in prompts_data:
                 prompts_text = prompts_data["prompts"]
-                
+
                 if "Available prompt templates:" in prompts_text:
                     prompt_lines = prompts_text.split("Available prompt templates:")[1].strip().split("\n")
                     prompts = [line.strip("- ") for line in prompt_lines if line.strip().startswith("-")]
                     prompt_names = [prompt.strip() for prompt in prompts]
-                    
+
                     selected_prompt = st.selectbox("Select prompt to edit:", prompt_names)
-                    
+
                     if selected_prompt:
                         # Get current content using direct API
                         try:
@@ -421,17 +421,17 @@ def show_prompt_manager():
                             )
                             content_response.raise_for_status()
                             content_data = content_response.json()
-                            
+
                             if "prompt" in content_data:
                                 current_content = content_data["prompt"]
-                                
+
                                 with st.form("edit_prompt"):
                                     new_content = st.text_area(
                                         "Edit prompt content:",
                                         value=current_content,
                                         height=500
                                     )
-                                    
+
                                     if st.form_submit_button("Update Prompt"):
                                         try:
                                             update_response = httpx.put(
@@ -444,31 +444,31 @@ def show_prompt_manager():
                                             )
                                             update_response.raise_for_status()
                                             update_data = update_response.json()
-                                            
+
                                             if "message" in update_data:
                                                 st.success(update_data["message"])
                                             else:
                                                 st.error("No response message received")
-                                            
+
                                         except Exception as e:
                                             st.error(f"Error updating prompt: {e}")
                             else:
                                 st.error("No prompt content received")
-                                
+
                         except Exception as e:
                             st.error(f"Error retrieving prompt content: {e}")
                 else:
                     st.info("No prompts available for editing.")
             else:
                 st.info("No prompt data received.")
-                
+
         except Exception as e:
             st.error(f"Error loading prompts: {e}")
-    
+
     with tab3:
         st.subheader("Create New Prompt Template")
         st.markdown("Create a new prompt template for specialized use cases.")
-        
+
         with st.form("create_prompt"):
             new_prompt_name = st.text_input("Prompt name (without .md extension):")
             new_prompt_content = st.text_area(
@@ -476,7 +476,7 @@ def show_prompt_manager():
                 height=500,
                 placeholder="Enter the prompt content here...\n\n# Title\n## Section\n- **Bold text**\n- *Italic text**\n- `code`"
             )
-            
+
             if st.form_submit_button("Create Prompt"):
                 if new_prompt_name and new_prompt_content:
                     try:
@@ -490,24 +490,24 @@ def show_prompt_manager():
                         )
                         create_response.raise_for_status()
                         create_data = create_response.json()
-                        
+
                         if "message" in create_data:
                             st.success(create_data["message"])
                         else:
                             st.error("No response message received")
-                        
+
                     except Exception as e:
                         st.error(f"Error creating prompt: {e}")
                 else:
                     st.warning("Please provide both a name and content for the new prompt.")
-    
+
     # Close the CSS wrapper div
     st.markdown('</div>', unsafe_allow_html=True)
 
 def render_chat_sessions_panel():
     """Render the chat sessions panel in the sidebar."""
     st.markdown("### 💬 Chat Sessions")
-    
+
     # New Chat button
     if st.button("🆕 New Chat", key="new_chat_sidebar"):
         # Create new session with unique ID
@@ -518,26 +518,26 @@ def render_chat_sessions_panel():
             "created_at": datetime.now().isoformat()
         }
         st.session_state.current_session_id = new_session_id
-        
+
         # Save to Redis
         if st.session_state.user_email:
             save_chat_sessions_to_redis(st.session_state.user_email, st.session_state.chat_sessions)
             save_current_session_to_redis(st.session_state.user_email, new_session_id)
-        
+
         st.rerun()
-    
+
     # Display chat sessions
     if st.session_state.chat_sessions:
         st.markdown("**Recent chats:**")
         for session_id, session_data in st.session_state.chat_sessions.items():
             # Determine if this is the current session
             is_current = session_id == st.session_state.current_session_id
-            
+
             # Check if this session is being edited
             editing_key = f"editing_{session_id}"
             if editing_key not in st.session_state:
                 st.session_state[editing_key] = False
-            
+
             if st.session_state[editing_key]:
                 # Edit mode - show input field and save/cancel buttons
                 col1, col2 = st.columns([3, 1])
@@ -553,15 +553,15 @@ def render_chat_sessions_panel():
                         if new_name.strip():
                             st.session_state.chat_sessions[session_id]["name"] = new_name.strip()
                             st.session_state[editing_key] = False
-                            
+
                             # Save to Redis
                             if st.session_state.user_email:
                                 save_chat_sessions_to_redis(st.session_state.user_email, st.session_state.chat_sessions)
-                            
+
                             st.rerun()
                         else:
                             st.error("Name cannot be empty")
-                
+
                 col3, col4 = st.columns([1, 1])
                 with col3:
                     if st.button("❌", key=f"cancel_{session_id}", help="Cancel"):
@@ -573,30 +573,30 @@ def render_chat_sessions_panel():
                             del st.session_state.chat_sessions[session_id]
                             if st.session_state.current_session_id == session_id:
                                 st.session_state.current_session_id = None
-                            
+
                             # Save updated sessions to Redis
                             if st.session_state.user_email:
                                 save_chat_sessions_to_redis(st.session_state.user_email, st.session_state.chat_sessions)
                                 if st.session_state.current_session_id:
                                     save_current_session_to_redis(st.session_state.user_email, st.session_state.current_session_id)
-                            
+
                             st.rerun()
             else:
                 # Normal mode - show session button and edit/delete buttons
                 col1, col2, col3 = st.columns([3, 1, 1])
                 with col1:
                     if st.button(
-                        session_data["name"], 
+                        session_data["name"],
                         key=f"session_{session_id}",
                         use_container_width=True,
                         type="primary" if is_current else "secondary"
                     ):
                         st.session_state.current_session_id = session_id
-                        
+
                         # Save current session to Redis
                         if st.session_state.user_email:
                             save_current_session_to_redis(st.session_state.user_email, session_id)
-                        
+
                         st.rerun()
                 with col2:
                     if st.button("✏️", key=f"edit_{session_id}", help="Edit name"):
@@ -608,13 +608,13 @@ def render_chat_sessions_panel():
                             del st.session_state.chat_sessions[session_id]
                             if st.session_state.current_session_id == session_id:
                                 st.session_state.current_session_id = None
-                            
+
                             # Save updated sessions to Redis
                             if st.session_state.user_email:
                                 save_chat_sessions_to_redis(st.session_state.user_email, st.session_state.chat_sessions)
                                 if st.session_state.current_session_id:
                                     save_current_session_to_redis(st.session_state.user_email, st.session_state.current_session_id)
-                            
+
                             st.rerun()
     else:
         st.info("No chat sessions yet. Start a new chat!")
@@ -632,7 +632,7 @@ def main():
             # Show authentication page
             show_auth_page()
             return
-    
+
     # User is authenticated, show main interface
     # Sidebar with user info, logout, and navigation
     with st.sidebar:
@@ -640,22 +640,22 @@ def main():
         if st.button("Logout"):
             logout_user()
             return
-        
+
         st.markdown("---")
-        
+
         # Initialize chat sessions if not exists
         if "chat_sessions" not in st.session_state:
             st.session_state.chat_sessions = {}
         if "current_session_id" not in st.session_state:
             st.session_state.current_session_id = None
-        
+
         # Initialize active view if not exists
         if "active_view" not in st.session_state:
             st.session_state.active_view = "Chat"
-        
+
         # Navigation buttons with custom styling
         st.markdown("### 🧭 Navigation")
-        
+
         # Chat button
         chat_selected = st.session_state.active_view == "Chat"
         if st.button(
@@ -666,7 +666,7 @@ def main():
         ):
             st.session_state.active_view = "Chat"
             st.rerun()
-        
+
         # Task Manager button
         task_selected = st.session_state.active_view == "Task Manager"
         if st.button(
@@ -677,7 +677,7 @@ def main():
         ):
             st.session_state.active_view = "Task Manager"
             st.rerun()
-        
+
         # Prompt Manager button
         prompt_selected = st.session_state.active_view == "Prompt Manager"
         if st.button(
@@ -688,11 +688,11 @@ def main():
         ):
             st.session_state.active_view = "Prompt Manager"
             st.rerun()
-        
+
         # Show chat sessions panel only when Chat view is active
         if st.session_state.active_view == "Chat":
             render_chat_sessions_panel()
-    
+
     # Main content area - show different views based on selection
     if st.session_state.active_view == "Chat":
         show_chat()

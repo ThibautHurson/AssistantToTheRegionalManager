@@ -1,6 +1,6 @@
-from fastapi import APIRouter, Depends, HTTPException, Query
 from typing import List, Optional
 from datetime import datetime
+from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel
 
 from backend.assistant_app.models.task_manager import TaskManager
@@ -37,7 +37,8 @@ class TaskResponse(TaskBase):
     class Config:
         from_attributes = True
 
-def get_task_manager(session_id: str = Query(..., description="Session ID for authentication")) -> TaskManager:
+def get_task_manager(session_id: str = Query(..., description="Session ID for authentication")
+                     ) -> TaskManager:
     """Get task manager for authenticated user."""
     user = auth_service.validate_session(session_id)
     if not user:
@@ -94,4 +95,4 @@ async def delete_task(
     task_manager = get_task_manager(session_id)
     if not task_manager.delete_task(task_id):
         raise HTTPException(status_code=404, detail="Task not found")
-    return {"status": "success"} 
+    return {"status": "success"}

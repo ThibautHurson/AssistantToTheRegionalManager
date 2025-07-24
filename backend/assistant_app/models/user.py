@@ -1,7 +1,7 @@
-from sqlalchemy import Column, String, Boolean, DateTime, func
+import uuid
+from sqlalchemy import Column, String, Boolean, DateTime
 from sqlalchemy.sql import func
 from backend.assistant_app.api_integration.db import Base
-import uuid
 
 class User(Base):
     __tablename__ = "users"
@@ -12,4 +12,4 @@ class User(Base):
     is_oauth_authenticated = Column(Boolean, default=False)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
-    last_login = Column(DateTime(timezone=True)) 
+    last_login = Column(DateTime(timezone=True))
