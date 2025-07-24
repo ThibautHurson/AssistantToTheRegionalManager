@@ -1,6 +1,12 @@
 # Assistant to the Regional Manager
 
-A sophisticated AI-powered assistant that integrates with Gmail to automatically detect, create, and manage tasks from emails. Built with FastAPI, Streamlit, and powered by Mistral AI.
+
+Your very own Dwight Schrute-level assistant that never sleeps, never complains, and automatically manages your emails and tasks. This AI-powered productivity companion integrates seamlessly with Gmail to detect tasks from emails, manages your calendar, provides real-time chat assistance, and keeps your workflow organized like a well-oiled machine.
+
+<p align="center">
+  <img src="docs/Dwight.jpeg" alt="Dwight and Michael working at the office" width="450">
+</p>
+
 
 ## 🌟 Features
 
@@ -183,8 +189,29 @@ docker-compose up
    - `http://localhost:8000/oauth2callback`
    - `http://localhost:8501/oauth2callback`
 8. Copy your Project ID to the `GOOGLE_PROJECT_ID` variable in your `.env` file
-9. Create a Pub/Sub topic for Gmail notifications and add it to `GOOGLE_TOPIC` in your `.env` file
 
+### Google Pub/Sub Setup (for Gmail Notifications)
+9. **Follow Google's official Pub/Sub setup guide**:
+   - [Pub/Sub Quickstart](https://cloud.google.com/pubsub/docs/quickstart-console)
+   - [Gmail API Push Notifications](https://developers.google.com/gmail/api/guides/push)
+
+10. **For local development**, use ngrok to create a public endpoint:
+    ```bash
+    # Install ngrok
+    npm install -g ngrok
+    
+    # Create public tunnel to your local server
+    ngrok http 8000
+    ```
+    
+    Use the ngrok URL (e.g., `https://abc123.ngrok.io`) as your webhook endpoint in the Pub/Sub subscription.
+
+11. **Set the environment variable** in your `.env` file:
+    ```
+    GOOGLE_TOPIC=gmail-notifications
+    ```
+
+**Note**: Replace `YOUR_PROJECT_ID` with your actual Google Cloud Project ID.
 
 ### First Time Setup
 1. Access the Streamlit UI at http://localhost:8501
@@ -200,7 +227,7 @@ docker-compose up
 AssistantToTheRegionalManager2/
 ├── backend/
 │   └── assistant_app/
-│       ├── agents/           # AI agents and tools
+│       ├── agents/          # AI agents and tools
 │       ├── api/             # FastAPI endpoints
 │       ├── models/          # Database models
 │       ├── services/        # Business logic
@@ -209,10 +236,10 @@ AssistantToTheRegionalManager2/
 ├── scripts/                 # Utility scripts
 ├── tests/                   # Test suite
 ├── requirements-test.txt    # Test dependencies
-├── pytest.ini             # Pytest configuration
-├── Makefile                # Development commands
-├── TESTING_GUIDE.md        # Comprehensive testing guide
-└── docker-compose.yml      # Container orchestration
+├── pytest.ini               # Pytest configuration
+├── Makefile                 # Development commands
+├── TESTING_GUIDE.md         # Comprehensive testing guide
+└── docker-compose.yml       # Container orchestration
 ```
 
 ### Testing
