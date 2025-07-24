@@ -110,18 +110,19 @@ class TestAPIEndpoints:
 
     @pytest.mark.api
     @pytest.mark.user_data
-    @patch('backend.assistant_app.api.v1.endpoints.chat.get_chat_agent')
-    def test_clear_user_data_endpoint(self, mock_get_chat_agent, client):
+    @patch('backend.assistant_app.services.user_data_service.UserDataService')
+    def test_clear_user_data_endpoint(self, mock_user_data_service_class, client):
         """Test clear user data endpoint."""
-        # Mock the chat agent
-        mock_agent = Mock()
-        mock_agent.clear_user_data.return_value = {
+        # Mock the UserDataService
+        mock_user_data_service = Mock()
+        mock_user_data_service.clear_user_data.return_value = {
             "success": True,
             "vector_store_cleared": True,
             "redis_keys_deleted": 5,
             "database_tasks_deleted": 3
         }
-        mock_get_chat_agent.return_value = mock_agent
+        mock_user_data_service_class.return_value = mock_user_data_service
+
         # Mock authentication
         with patch('backend.assistant_app.api.v1.endpoints.auth_router.auth_service') \
              as mock_auth:
@@ -140,8 +141,8 @@ class TestAPIEndpoints:
 
     @pytest.mark.api
     @pytest.mark.user_data
-    @patch('backend.assistant_app.api.v1.endpoints.chat.get_chat_agent')
-    def test_clear_user_data_unauthorized(self, mock_get_chat_agent, client):
+    @patch('backend.assistant_app.services.user_data_service.UserDataService')
+    def test_clear_user_data_unauthorized(self, mock_user_data_service_class, client):
         """Test clear user data endpoint with invalid session."""
         # Mock authentication failure
         with patch('backend.assistant_app.api.v1.endpoints.auth_router.auth_service') \
@@ -156,19 +157,20 @@ class TestAPIEndpoints:
 
     @pytest.mark.api
     @pytest.mark.user_data
-    @patch('backend.assistant_app.api.v1.endpoints.chat.get_chat_agent')
-    def test_clear_user_data_with_errors(self, mock_get_chat_agent, client):
+    @patch('backend.assistant_app.services.user_data_service.UserDataService')
+    def test_clear_user_data_with_errors(self, mock_user_data_service_class, client):
         """Test clear user data endpoint with errors."""
-        # Mock the chat agent to return errors
-        mock_agent = Mock()
-        mock_agent.clear_user_data.return_value = {
+        # Mock the UserDataService to return errors
+        mock_user_data_service = Mock()
+        mock_user_data_service.clear_user_data.return_value = {
             "success": False,
             "vector_store_cleared": False,
             "redis_keys_deleted": 0,
             "database_tasks_deleted": 0,
             "errors": ["Vector store error", "Database error"]
         }
-        mock_get_chat_agent.return_value = mock_agent
+        mock_user_data_service_class.return_value = mock_user_data_service
+
         # Mock authentication
         with patch('backend.assistant_app.api.v1.endpoints.auth_router.auth_service') \
              as mock_auth:

@@ -123,9 +123,13 @@ class TaskDetector:
         """Process an email and return task details if relevant."""
         full_content = (f"Subject: {email_subject}\n\n{email_content}"
                         if email_subject else email_content)
-
-        if await self._is_task_relevant(full_content):
-            task_details = await self._extract_task_details(full_content)
-            return task_details
+        try:
+            if await self._is_task_relevant(full_content):
+                task_details = await self._extract_task_details(full_content)
+                return task_details
+        except Exception as e:
+            # Log the error if desired
+            print(f"Error in process_email: {e}")
+            return None
 
         return None
