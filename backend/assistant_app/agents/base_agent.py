@@ -10,9 +10,10 @@ class BaseAgent(ABC):
         self.config = config or {}
 
     @abstractmethod
-    def run(self, input_data: Any) -> Any:
+    async def run(self, input_data: Any, *args, **kwargs) -> Any:
         """
         Run the agent with the provided input and return the result.
+        This method should be implemented as async in concrete classes.
         """
         pass
 

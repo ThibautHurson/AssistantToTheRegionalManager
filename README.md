@@ -5,7 +5,7 @@ A sophisticated AI-powered assistant that integrates with Gmail to automatically
 ## 🌟 Features
 
 ### Core Functionality
-- **Gmail Integration**: Automatic email monitoring and task extraction based on Gmail Pub/Sub triggers
+- **Gmail Integration**: Automatic email monitoring and task extraction based on Gmail Pub/Sub triggers, email search, email response suggestions
 - **AI-Powered Task Detection**: Uses Mistral AI to intelligently identify tasks from emails
 - **Task Management**: Full CRUD operations for tasks with priority and due date support
 - **Real-time Chat Interface**: Interactive chatbot with conversation history
@@ -14,11 +14,12 @@ A sophisticated AI-powered assistant that integrates with Gmail to automatically
 
 ### Advanced Features
 - **Smart Prompt Management**: Dynamic prompt selection based on conversation context
-- **Vector-based Memory**: FAISS-powered semantic search for conversation history
+- **Vector-based Memory**: FAISS-powered semantic search for conversation history with user isolation
 - **Calendar Integration**: Schedule and manage calendar events
 - **Web Search Capabilities**: Real-time web search for current information
-- **Database Persistence**: PostgreSQL with Alembic migrations
+- **Database Persistence**: PostgreSQL
 - **Redis Caching**: High-performance session and data caching
+- **Privacy Protection**: User-specific vector stores prevent data leakage between users
 
 
 
@@ -206,8 +207,52 @@ AssistantToTheRegionalManager2/
 │       └── utils/           # Utilities and helpers
 ├── streamlit/               # Streamlit frontend
 ├── scripts/                 # Utility scripts
-└── docker-compose.yml       # Container orchestration
+├── tests/                   # Test suite
+├── requirements-test.txt    # Test dependencies
+├── pytest.ini             # Pytest configuration
+├── Makefile                # Development commands
+├── TESTING_GUIDE.md        # Comprehensive testing guide
+└── docker-compose.yml      # Container orchestration
 ```
+
+### Testing
+
+The project includes a comprehensive test suite with multiple testing options:
+
+#### Quick Test Commands
+```bash
+# Install test dependencies
+make install
+
+# Run all tests
+make test
+
+# Run unit tests only (fast)
+make test-unit
+
+# Run tests with coverage
+make test-cov
+
+# Run tests in parallel
+make test-fast
+
+# Run specific test file
+make test-file FILE=tests/test_api_endpoints.py
+
+# Run tests matching pattern
+make test-pattern PATTERN=test_user_data
+
+# Run with database services
+make test-with-db
+```
+
+#### Test Categories
+- **Unit Tests**: Fast, isolated tests for individual functions
+- **Integration Tests**: Tests requiring external services (database, Redis)
+- **API Tests**: End-to-end API endpoint testing
+- **Slow Tests**: Tests that take longer to run
+
+For detailed testing information, see [TESTING_GUIDE.md](TESTING_GUIDE.md).
 
 ### Running in Development Mode
 ```bash
@@ -289,10 +334,11 @@ The application uses Docker Compose with the following services:
 - `GET /oauth2callback` - OAuth callback handler
 - `POST /gmail/push` - Gmail webhook endpoint
 
-### Authentication
+### Authentication & Privacy
 - `POST /auth/register` - User registration
 - `POST /auth/login` - User login
 - `POST /auth/logout` - User logout
+- `POST /auth/clear-data` - Clear all user data for GDPR compliance (tasks, vector store, Redis)
 
 ## 🤖 AI Features
 
@@ -387,13 +433,22 @@ sequenceDiagram
     FastAPI-->>Streamlit: OAuth Complete
 ```
 
-## 🔒 Security
+## 🔒 Security & Privacy
 
+### Security Features
 - **OAuth 2.0**: Secure Google authentication
 - **Password Hashing**: bcrypt for user passwords
 - **Session Management**: Secure session tokens
 - **CORS Protection**: Configured for production use
 - **Input Validation**: Pydantic models for data validation
+
+### Privacy Protection
+- **User Isolation**: Single FAISS vector store with user_id filtering (like pgvector), preventing data leakage between users
+- **Conversation Privacy**: User conversations are isolated and cannot be accessed by other users
+- **Comprehensive Data Deletion**: Users can clear all their data including tasks, vector store, and Redis data via API endpoint for GDPR compliance
+- **Secure Storage**: All user data is encrypted and stored with proper access controls
+- **Efficient Storage**: Single vector store with metadata filtering is more scalable than separate files per user
+- **Centralized Data Management**: Dedicated UserDataService handles all user data deletion operations
 
 ## 📊 Monitoring and Logging
 

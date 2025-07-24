@@ -1,6 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
-from typing import List
 
 from backend.assistant_app.agents.mistral_chat_agent import MistralMCPChatAgent
 
@@ -23,10 +22,11 @@ def extract_mcp_content(result) -> str:
             else:
                 content_parts.append(str(item))
         return '\n'.join(content_parts)
-    elif hasattr(result.content, 'text'):
+    
+    if hasattr(result.content, 'text'):
         return result.content.text
-    else:
-        return str(result.content)
+
+    return str(result.content)
 
 class PromptUpdateRequest(BaseModel):
     prompt_name: str
@@ -94,4 +94,4 @@ async def create_prompt(
         })
         return {"message": extract_mcp_content(result)}
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Error creating prompt: {str(e)}") 
+        raise HTTPException(status_code=500, detail=f"Error creating prompt: {str(e)}")

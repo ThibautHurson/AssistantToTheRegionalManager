@@ -1,5 +1,5 @@
-import redis
 import os
+import redis
 
 redis_url = os.getenv("REDIS_URL", "redis://redis:6379")
 r = redis.Redis.from_url(redis_url)
@@ -7,12 +7,10 @@ r = redis.Redis.from_url(redis_url)
 def load_token(user_id, api_name):
     # Load when needed
     secrets = r.hgetall(f"token:{api_name}:{user_id}")
-    
+
     if not secrets:
         raise ValueError(f"No token found for user_id: {user_id}")
-    
-    client_id = secrets[b"client_id"].decode()
-    client_secret = secrets[b"client_secret"].decode()
+
     token = secrets[b"token"].decode()
     return token
 
