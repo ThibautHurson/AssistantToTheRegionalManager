@@ -219,13 +219,17 @@ class MistralMCPChatAgent(BaseAgent):
             if message.tool_calls:
                 tool_outputs = []
                 for tool_call in message.tool_calls:
-                    agent_logger.log_debug(f"Tool chosen by Mistral: {tool_call.function.name}", {
-                        "tool_name": tool_call.function.name,
-                        "tool_call_id": tool_call.id
-                    })
                     tool_name = tool_call.function.name
                     tool_args = json.loads(tool_call.function.arguments)
-
+                    
+                    # Log tool call with parameters
+                    agent_logger.log_info(f"Tool called: {tool_name}", {
+                        "tool_name": tool_name,
+                        "parameters": tool_args,
+                        "user_email": user_email,
+                        "session_id": session_id
+                    })
+                    
                     # Add user_email for tools that need it
                     if tool_name not in ['smart_web_search', 'search_with_sources']:
                         tool_args["user_email"] = user_email
@@ -294,8 +298,11 @@ class MistralMCPChatAgent(BaseAgent):
                 content = message.content
                 await context_manager.save_new_messages(session_id, new_messages_this_turn)
                 agent_logger.log_info("LLM gave final answer, saving messages and returning content", {
+                    "step": step + 1,
                     "message_count": len(llm_context),
-                    "new_message_count": len(new_messages_this_turn)
+                    "new_message_count": len(new_messages_this_turn),
+                    "session_id": session_id,
+                    "user_email": user_email,
                 })
                 return self._cleanup_source_references(content)
 
@@ -303,8 +310,11 @@ class MistralMCPChatAgent(BaseAgent):
         final_content = llm_context[-1].get("content", "Max steps reached.")
         await context_manager.save_new_messages(session_id, new_messages_this_turn)
         agent_logger.log_info("Max steps reached, returning final content", {
+            "max_steps": self.max_steps,
             "message_count": len(llm_context),
-            "new_message_count": len(new_messages_this_turn)
+            "new_message_count": len(new_messages_this_turn),
+            "session_id": session_id,
+            "user_email": user_email,
         })
         return self._cleanup_source_references(final_content)
 
