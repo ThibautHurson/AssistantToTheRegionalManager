@@ -11,6 +11,7 @@ import httpx
 from datetime import datetime
 from backend.assistant_app.utils.redis_saver import save_to_redis
 from backend.assistant_app.services.auth_service import auth_service
+from backend.assistant_app.utils.logger import gmail_logger, error_logger
 
 load_dotenv()
 
@@ -49,7 +50,7 @@ SCOPES = [
 def load_client_config():
     """Load OAuth2 client configuration from file."""
     if not os.path.exists(CLIENT_SECRET_FILE):
-        print(f"Client secret file not found at {CLIENT_SECRET_FILE}")
+        gmail_logger.log_warning("Client secret file not found", {"file_path": CLIENT_SECRET_FILE})
         return None
 
     with open(CLIENT_SECRET_FILE, 'r') as f:
@@ -65,15 +66,15 @@ def clear_credentials(user_email: str) -> bool:
         file_path = f'google_setup/token_store/{user_email}.json'
         if os.path.exists(file_path):
             os.remove(file_path)
-            print(f"Cleared credentials for {user_email}")
+            gmail_logger.log_info("Cleared credentials", {"user_email": user_email})
             return True
     except Exception as e:
-        print(f"Error clearing credentials: {e}")
+        error_logger.log_error(e, {"context": "clear_credentials", "user_email": user_email})
         return False
     return True
 
 def load_credentials(user_email: str) -> Optional[Credentials]:
-    print("in load_credentials")
+    gmail_logger.log_debug("Loading credentials", {"user_email": user_email})
     # Try Redis first
     creds_json = redis_client.get(f"google_creds:{user_email}")
 
@@ -85,7 +86,7 @@ def load_credentials(user_email: str) -> Optional[Credentials]:
                 # Restore to Redis
                 redis_client.set(f"google_creds:{user_email}", creds_json)
         except FileNotFoundError:
-            print("No credentials found in Redis or file backup")
+            gmail_logger.log_warning("No credentials found", {"user_email": user_email})
             return None
 
     creds_dict = json.loads(creds_json)
@@ -95,24 +96,24 @@ def load_credentials(user_email: str) -> Optional[Credentials]:
         creds.expiry = datetime.fromisoformat(creds_dict['expiry'])
 
     if creds and creds.expired and creds.refresh_token:
-        print("Credentials expired. Need to refresh")
+        gmail_logger.log_info("Credentials expired, refreshing", {"user_email": user_email})
         try:
             creds.refresh(Request())
             save_credentials(user_email, creds)
             # Set up Gmail watch after refreshing credentials, passing the refreshed creds
             setup_gmail_watch(user_email, creds)
         except Exception as e:
-            print(f"Error refreshing token: {e}")
+            error_logger.log_error(e, {"context": "refresh_token", "user_email": user_email})
             # If refresh fails due to scope issues, clear credentials to force new OAuth
             if "invalid_scope" in str(e):
-                print("Scope mismatch detected, clearing credentials to force new OAuth")
+                gmail_logger.log_warning("Scope mismatch detected, clearing credentials", {"user_email": user_email})
                 clear_credentials(user_email)
             return None
-    print("load_credentials Returning credentials")
+    gmail_logger.log_debug("Returning credentials", {"user_email": user_email})
     return creds if creds and creds.valid else None
 
 def save_credentials(user_email: str, creds: Credentials):
-    print("Saving credentials to Redis")
+    gmail_logger.log_debug("Saving credentials to Redis", {"user_email": user_email})
     creds_dict = {
         'token': creds.token,
         'refresh_token': creds.refresh_token,
@@ -136,7 +137,7 @@ def get_authorization_url(session_token: str) -> Tuple[Optional[str], Optional[F
     Get the authorization URL for Google OAuth2 flow.
     Returns a tuple of (auth_url, flow) or (None, None) if already authenticated.
     """
-    print("in get_authorization_url")
+    gmail_logger.log_debug("Getting authorization URL", {"session_token": session_token[:10] + "..."})
     # First check if we already have valid credentials for this user
     user = auth_service.validate_session(session_token)
     if not user:
@@ -144,13 +145,13 @@ def get_authorization_url(session_token: str) -> Tuple[Optional[str], Optional[F
 
     existing = load_credentials(user.email)
     if existing and existing.valid:
-        print("Valid credentials found")
+        gmail_logger.log_info("Valid credentials found", {"user_email": user.email})
         return None, None
 
     # Load client configuration
     client_config = load_client_config()
     if not client_config:
-        print("No client configuration found")
+        gmail_logger.log_error("No client configuration found", {"user_email": user.email})
         raise FileNotFoundError("Client secret file not found or invalid")
 
     # Create Flow instance with explicit redirect URI that includes session_token
@@ -185,11 +186,11 @@ def setup_gmail_watch(email: str, creds: Optional[Credentials] = None) -> bool:
         bool: True if watch was set up successfully, False otherwise
     """
     try:
-        print(f"Setting up Gmail watch for {email}")
+        gmail_logger.log_info("Setting up Gmail watch", {"email": email})
         if not creds:
             creds = load_credentials(email)
         if not creds:
-            print(f"No valid credentials found for {email}")
+            gmail_logger.log_warning("No valid credentials found", {"email": email})
             return False
 
         service = build("gmail", "v1", credentials=creds)
@@ -203,28 +204,26 @@ def setup_gmail_watch(email: str, creds: Optional[Credentials] = None) -> bool:
             }
         ).execute()
 
-        print(f"Watch response: {watch_response}")
+        gmail_logger.log_info("Watch response received", {"response": watch_response})
         return True
     except Exception as e:
-        print(f"Error setting up Gmail watch: {e}")
-        import traceback
-        print(f"Traceback: {traceback.format_exc()}")
+        error_logger.log_error(e, {"context": "setup_gmail_watch", "email": email})
         return False
 
 def exchange_code_for_token(code: str, state: str, session_token: str) -> Optional[Credentials]:
     """Exchange authorization code for access token."""
-    print("in exchange_code_for_token")
+    gmail_logger.log_debug("Exchanging code for token", {"session_token": session_token[:10] + "..."})
     try:
         # Validate session and get user
         user = auth_service.validate_session(session_token)
         if not user:
-            print("Invalid session token")
+            gmail_logger.log_warning("Invalid session token", {"session_token": session_token[:10] + "..."})
             return None
 
         # Load client configuration
         client_config = load_client_config()
         if not client_config:
-            print("No client configuration found")
+            gmail_logger.log_error("No client configuration found", {"session_token": session_token[:10] + "..."})
             return None
 
         # Create Flow instance with explicit redirect URI that includes session_token
@@ -242,7 +241,7 @@ def exchange_code_for_token(code: str, state: str, session_token: str) -> Option
         # Get user email from ID token
         id_token = creds.id_token
         if not id_token:
-            print("No ID token found in credentials")
+            gmail_logger.log_warning("No ID token found in credentials", {"user_email": user.email})
             return None
 
         # Decode the JWT token
@@ -252,14 +251,14 @@ def exchange_code_for_token(code: str, state: str, session_token: str) -> Option
             decoded_token = jwt.decode(id_token, options={"verify_signature": False})
             oauth_email = decoded_token.get('email')
             if not oauth_email:
-                print("No email found in ID token")
+                gmail_logger.log_warning("No email found in ID token", {"user_email": user.email})
                 return None
 
-            print(f"Found email in ID token: {oauth_email}")
+            gmail_logger.log_info("Found email in ID token", {"oauth_email": oauth_email, "user_email": user.email})
 
             # Verify the OAuth email matches the user's email
             if oauth_email != user.email:
-                print(f"OAuth email {oauth_email} doesn't match user email {user.email}")
+                gmail_logger.log_warning("OAuth email doesn't match user email", {"oauth_email": oauth_email, "user_email": user.email})
                 return None
 
             # Save credentials using user email
@@ -270,13 +269,11 @@ def exchange_code_for_token(code: str, state: str, session_token: str) -> Option
 
             return creds
         except Exception as e:
-            print(f"Error decoding ID token: {e}")
+            error_logger.log_error(e, {"context": "decode_id_token", "user_email": user.email})
             return None
 
     except Exception as e:
-        print(f"Error exchanging code for token: {e}")
-        import traceback
-        print(f"Traceback: {traceback.format_exc()}")
+        error_logger.log_error(e, {"context": "exchange_code_for_token", "session_token": session_token[:10] + "..."})
         return None
 
 def fetch_user_email(creds):

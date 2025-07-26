@@ -56,7 +56,6 @@ class TestAPIEndpoints:
         response = client.post("/auth/login", json=register_data)
         assert response.status_code == 200
         data = response.json()
-        assert data["success"]
         assert "session_token" in data
         assert "user_email" in data
 
@@ -88,29 +87,29 @@ class TestAPIEndpoints:
         assert login_response.status_code == 200
         session_token = login_response.json()["session_token"]
         # Test session validation
-        response = client.get("/auth/validate",
+        response = client.post("/auth/validate_session",
                             params={"session_token": session_token})
         assert response.status_code == 200
         data = response.json()
-        assert "email" in data
-        assert "is_oauth_authenticated" in data
-        assert "created_at" in data
+        assert "user" in data
+        assert "email" in data["user"]
+        assert "oauth_authenticated" in data["user"]
 
     @pytest.mark.api
     @pytest.mark.auth
     def test_validate_session_failure(self, client):
         """Test failed session validation."""
         # Test with invalid session token
-        response = client.get("/auth/validate",
+        response = client.post("/auth/validate_session",
                             params={"session_token": "invalid_token"})
         assert response.status_code == 401
         data = response.json()
         assert "detail" in data
-        assert "Invalid or expired session" in data["detail"]
+        assert "Invalid session" in data["detail"]
 
     @pytest.mark.api
     @pytest.mark.user_data
-    @patch('backend.assistant_app.services.user_data_service.UserDataService')
+    @patch('backend.assistant_app.api.v1.endpoints.auth_router.UserDataService')
     def test_clear_user_data_endpoint(self, mock_user_data_service_class, client):
         """Test clear user data endpoint."""
         # Mock the UserDataService
@@ -129,7 +128,7 @@ class TestAPIEndpoints:
             mock_user = Mock()
             mock_user.email = "test@example.com"
             mock_auth.validate_session.return_value = mock_user
-            response = client.post("/auth/clear-data",
+            response = client.delete("/auth/user-data",
                                 params={"session_token": "valid_token"})
             assert response.status_code == 200
             data = response.json()
@@ -141,23 +140,23 @@ class TestAPIEndpoints:
 
     @pytest.mark.api
     @pytest.mark.user_data
-    @patch('backend.assistant_app.services.user_data_service.UserDataService')
+    @patch('backend.assistant_app.api.v1.endpoints.auth_router.UserDataService')
     def test_clear_user_data_unauthorized(self, mock_user_data_service_class, client):
         """Test clear user data endpoint with invalid session."""
         # Mock authentication failure
         with patch('backend.assistant_app.api.v1.endpoints.auth_router.auth_service') \
              as mock_auth:
             mock_auth.validate_session.return_value = None
-            response = client.post("/auth/clear-data",
+            response = client.delete("/auth/user-data",
                                 params={"session_token": "invalid_token"})
             assert response.status_code == 401
             data = response.json()
             assert "detail" in data
-            assert "Invalid or expired session" in data["detail"]
+            assert "Invalid session" in data["detail"]
 
     @pytest.mark.api
     @pytest.mark.user_data
-    @patch('backend.assistant_app.services.user_data_service.UserDataService')
+    @patch('backend.assistant_app.api.v1.endpoints.auth_router.UserDataService')
     def test_clear_user_data_with_errors(self, mock_user_data_service_class, client):
         """Test clear user data endpoint with errors."""
         # Mock the UserDataService to return errors
@@ -177,7 +176,7 @@ class TestAPIEndpoints:
             mock_user = Mock()
             mock_user.email = "test@example.com"
             mock_auth.validate_session.return_value = mock_user
-            response = client.post("/auth/clear-data",
+            response = client.delete("/auth/user-data",
                                 params={"session_token": "valid_token"})
             assert response.status_code == 200
             data = response.json()

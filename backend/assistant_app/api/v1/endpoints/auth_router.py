@@ -1,136 +1,157 @@
-from typing import Optional
+import os
+import json
+from datetime import datetime, timedelta
 from fastapi import APIRouter, HTTPException, Depends
-from pydantic import BaseModel, EmailStr
-from backend.assistant_app.services.auth_service import auth_service
+from pydantic import BaseModel
+from sqlalchemy.orm import Session
+from backend.assistant_app.api_integration.db import get_db
 from backend.assistant_app.models.user import User
-from backend.assistant_app.api.v1.endpoints.prompt_router import get_chat_agent
+from backend.assistant_app.models.task import Task
+from backend.assistant_app.services.auth_service import auth_service
+from backend.assistant_app.services.user_data_service import UserDataService
+from backend.assistant_app.utils.logger import error_logger
 
-router = APIRouter()
+router = APIRouter(prefix="/auth", tags=["authentication"])
 
-class UserRegister(BaseModel):
-    email: EmailStr
-    password: str
-
-class UserLogin(BaseModel):
-    email: EmailStr
-    password: str
-
-class AuthResponse(BaseModel):
-    success: bool
-    message: str
-    session_token: Optional[str] = None
-    user_email: Optional[str] = None
-
-class UserInfo(BaseModel):
+class LoginRequest(BaseModel):
     email: str
-    is_oauth_authenticated: bool
-    created_at: str
-    last_login: Optional[str] = None
+    password: str
 
-def get_current_user(session_token: str) -> User:
-    """Dependency to get current authenticated user."""
-    user = auth_service.validate_session(session_token)
-    if not user:
-        raise HTTPException(status_code=401, detail="Invalid or expired session")
-    return user
+class RegisterRequest(BaseModel):
+    email: str
+    password: str
 
-@router.post("/auth/register", response_model=AuthResponse)
-async def register(user_data: UserRegister):
+@router.post("/register")
+async def register(request: RegisterRequest, db: Session = Depends(get_db)):
     """Register a new user."""
-    success, message = auth_service.register_user(user_data.email, user_data.password)
-
-    if success:
-        return AuthResponse(success=True, message=message)
-    raise HTTPException(status_code=400, detail=message)
-
-@router.post("/auth/login", response_model=AuthResponse)
-async def login(user_data: UserLogin):
-    """Login a user."""
-    session_token, message = auth_service.login_user(user_data.email, user_data.password)
-
-    if session_token:
-        return AuthResponse(
-            success=True,
-            message=message,
-            session_token=session_token,
-            user_email=user_data.email
-        )
-    raise HTTPException(status_code=401, detail=message)
-
-@router.post("/auth/logout", response_model=AuthResponse)
-async def logout(session_token: str):
-    """Logout a user."""
-    success = auth_service.logout_user(session_token)
-
-    if success:
-        return AuthResponse(success=True, message="Logged out successfully")
-    raise HTTPException(status_code=400, detail="Invalid session token")
-
-@router.get("/auth/validate", response_model=UserInfo)
-async def validate_session(session_token: str):
-    """Validate a session and return user info."""
-    user = auth_service.validate_session(session_token)
-
-    if not user:
-        raise HTTPException(status_code=401, detail="Invalid or expired session")
-
-    return UserInfo(
-        email=user.email,
-        is_oauth_authenticated=user.is_oauth_authenticated,
-        created_at=user.created_at.isoformat() if user.created_at else None,
-        last_login=user.last_login.isoformat() if user.last_login else None
-    )
-
-@router.get("/auth/me", response_model=UserInfo)
-async def get_current_user_info(user: User = Depends(get_current_user)):
-    """Get current user information."""
-    return UserInfo(
-        email=user.email,
-        is_oauth_authenticated=user.is_oauth_authenticated,
-        created_at=user.created_at.isoformat() if user.created_at else None,
-        last_login=user.last_login.isoformat() if user.last_login else None
-    )
-
-@router.post("/auth/clear-data")
-async def clear_user_data(session_token: str):
-    """Clear all user data including vector store data for privacy compliance."""
     try:
-        # Validate session and get user
+        error_logger.log_info("Registration attempt", {"email": request.email})
+        # Check if user already exists
+        existing_user = db.query(User).filter(User.email == request.email).first()
+        if existing_user:
+            error_logger.log_warning("Registration failed - user already exists", {"email": request.email})
+            raise HTTPException(status_code=400, detail="User already exists")
+        
+        # Create new user using AuthService
+        success, message = auth_service.register_user(request.email, request.password)
+        
+        if success:
+            error_logger.log_info("Registration successful", {"email": request.email})
+            return {"message": message}
+        else:
+            error_logger.log_warning("Registration failed", {"email": request.email, "message": message})
+            raise HTTPException(status_code=400, detail=message)
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        error_logger.log_error(e, {"context": "register", "email": request.email})
+        raise HTTPException(status_code=500, detail="Registration failed")
+
+@router.post("/login")
+async def login(request: LoginRequest, db: Session = Depends(get_db)):
+    """Login user and return session token."""
+    try:
+        error_logger.log_info("Login attempt", {"email": request.email})
+        # Use AuthService for login
+        session_token, message = auth_service.login_user(request.email, request.password)
+        
+        if session_token:
+            # Get user info for response
+            user = db.query(User).filter(User.email == request.email).first()
+            response_data = {
+                "session_token": session_token,
+                "user_email": user.email
+            }
+            error_logger.log_info("Login successful", {"user_email": user.email, "session_token": session_token[:10] + "..."})
+            return response_data
+        else:
+            error_logger.log_warning("Login failed", {"user_email": request.email, "message": message})
+            raise HTTPException(status_code=401, detail=message)
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        error_logger.log_error(e, {"context": "login", "email": request.email})
+        raise HTTPException(status_code=500, detail="Login failed")
+
+@router.post("/logout")
+async def logout(session_token: str = None):
+    """Logout user and invalidate session."""
+    if not session_token:
+        error_logger.log_warning("Logout attempt without session token")
+        raise HTTPException(status_code=400, detail="Session token required")
+    
+    try:
+        error_logger.log_info("Logout attempt", {"session_token": session_token[:10] + "..."})
+        success = auth_service.logout_user(session_token)
+        if success:
+            error_logger.log_info("Logout successful", {"session_token": session_token[:10] + "..."})
+            return {"message": "Logged out successfully"}
+        else:
+            error_logger.log_warning("Logout failed - invalid session token", {"session_token": session_token[:10] + "..."})
+            raise HTTPException(status_code=400, detail="Invalid session token")
+    except HTTPException:
+        raise
+    except Exception as e:
+        error_logger.log_error(e, {"context": "logout", "session_token": session_token[:10] + "..."})
+        raise HTTPException(status_code=500, detail="Logout failed")
+
+@router.post("/validate_session")
+async def validate_session(session_token: str = None):
+    """Validate session token and return user info."""
+    if not session_token:
+        error_logger.log_warning("Session validation attempt without session token")
+        raise HTTPException(status_code=400, detail="Session token required")
+    
+    try:
+        error_logger.log_info("Session validation attempt", {"session_token": session_token[:10] + "..."})
         user = auth_service.validate_session(session_token)
         if not user:
-            raise HTTPException(
-                status_code=401,
-                detail="Invalid or expired session. Please log in again."
-            )
-
-        # Get the chat agent instance and clear user data
-        chat_agent = get_chat_agent()
-        results = chat_agent.clear_user_data(user.email)
-
-        if results["success"]:
-            return {
-                "message": "User data cleared successfully",
-                "details": {
-                    "vector_store_cleared": results["vector_store_cleared"],
-                    "redis_keys_deleted": results["redis_keys_deleted"],
-                    "database_tasks_deleted": results["database_tasks_deleted"]
-                }
-            }
+            error_logger.log_warning("Session validation failed - invalid session", {"session_token": session_token[:10] + "..."})
+            raise HTTPException(status_code=401, detail="Invalid session")
+        
+        error_logger.log_info("Session validation successful", {"user_email": user.email})
         return {
-            "message": "User data cleared with some errors",
-            "details": {
-                "vector_store_cleared": results["vector_store_cleared"],
-                "redis_keys_deleted": results["redis_keys_deleted"],
-                "database_tasks_deleted": results["database_tasks_deleted"],
-                "errors": results["errors"]
+            "user": {
+                "id": user.id,
+                "email": user.email,
+                "oauth_authenticated": user.is_oauth_authenticated
             }
         }
     except HTTPException:
-        # Re-raise HTTPExceptions as-is (like 401 for invalid session)
         raise
     except Exception as e:
-        print(f"Error clearing user data: {e}")
-        raise HTTPException(
-            status_code=500,
-            detail=f"Error clearing user data: {str(e)}"
-        )
+        error_logger.log_error(e, {"context": "validate_session", "session_token": session_token[:10] + "..."})
+        raise HTTPException(status_code=500, detail="Session validation failed")
+
+@router.delete("/user-data")
+async def clear_user_data(session_token: str = None, db: Session = Depends(get_db)):
+    """Clear all user data including tasks, chat history, and OAuth credentials."""
+    if not session_token:
+        error_logger.log_warning("User data clear attempt without session token")
+        raise HTTPException(status_code=400, detail="Session token required")
+    
+    try:
+        error_logger.log_info("User data clear attempt", {"session_token": session_token[:10] + "..."})
+        # Validate session
+        user = auth_service.validate_session(session_token)
+        if not user:
+            error_logger.log_warning("User data clear failed - invalid session", {"session_token": session_token[:10] + "..."})
+            raise HTTPException(status_code=401, detail="Invalid session")
+        
+        # Clear user data
+        user_data_service = UserDataService()
+        result = user_data_service.clear_user_data(user.email)
+        
+        error_logger.log_info("User data cleared successfully", {"user_email": user.email, "result": result})
+        return {
+            "message": "User data cleared successfully",
+            "details": result
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        error_logger.log_error(e, {"context": "clear_user_data", "user_email": user.email if 'user' in locals() else None})
+        raise HTTPException(status_code=500, detail="Failed to clear user data")
