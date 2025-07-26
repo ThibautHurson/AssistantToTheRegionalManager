@@ -9,6 +9,7 @@ import json
 from auth_ui import show_auth_page, logout_user, validate_session
 from datetime import datetime
 import uuid
+from backend.assistant_app.utils.logger import streamlit_logger
 
 load_dotenv()
 
@@ -269,7 +270,7 @@ def show_chat():
 
     if send_clicked and user_input:
         try:
-            print("Going to call /chat endpoint")
+            streamlit_logger.info("Going to call /chat endpoint")
             # Append user message first for immediate feedback
             chat_history.append(("You", user_input))
 
@@ -282,7 +283,7 @@ def show_chat():
             # Add chat session ID if we have one
             if st.session_state.current_session_id:
                 payload["chat_session_id"] = st.session_state.current_session_id
-                print(f"Sending chat_session_id: {st.session_state.current_session_id}")
+                streamlit_logger.info(f"Sending chat_session_id: {st.session_state.current_session_id}")
 
             res = httpx.post(
                 f"{FASTAPI_URI}/chat",

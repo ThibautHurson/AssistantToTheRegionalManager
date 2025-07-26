@@ -3,6 +3,7 @@ import httpx
 import os
 from dotenv import load_dotenv
 from backend.assistant_app.utils.redis_saver import load_chat_sessions_from_redis, load_current_session_from_redis
+from backend.assistant_app.utils.logger import streamlit_logger
 
 load_dotenv()
 FASTAPI_URI = os.getenv("FASTAPI_URI", "http://localhost:8000")
@@ -50,7 +51,7 @@ def show_login_form():
                                     st.session_state.chat_sessions = {}
                                     st.session_state.current_session_id = None
                             except Exception as e:
-                                print(f"Error loading chat sessions: {e}")
+                                streamlit_logger.log_error(e, {"context": "load_chat_sessions"})
                                 st.session_state.chat_sessions = {}
                                 st.session_state.current_session_id = None
 
@@ -174,5 +175,5 @@ def validate_session():
             return None
 
     except Exception as e:
-        print(f"Session validation error: {e}")
+        streamlit_logger.log_error(e, {"context": "session_validation"})
         return None
