@@ -153,8 +153,8 @@ class SemanticPromptSelector:
                 selected_prompts.append(prompt_name)
                 memory_logger.log_debug("Selected prompt", {
                     "prompt_name": prompt_name,
-                    "similarity": round(similarity, 3),
-                    "distance": round(dist, 3)
+                    "similarity": float(round(similarity, 3)),
+                    "distance": float(round(dist, 3))
                 })
 
         return selected_prompts
