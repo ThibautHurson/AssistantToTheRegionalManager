@@ -17,6 +17,7 @@ from backend.assistant_app.agents.tools.calendar_tools import (
     search_calendar_events,
     get_calendar_list
 )
+from backend.assistant_app.utils.logger import agent_logger
 
 mcp = FastMCP(
     "assistant-mcp-server",
@@ -619,9 +620,10 @@ async def search_with_sources(
             for selector in selectors:
                 result_elements = soup.select(selector)
                 if result_elements:
-                    print(
-                        f"Found {len(result_elements)} results with selector: {selector}"
-                    )
+                    agent_logger.log_debug("Found results with selector", {
+                        "count": len(result_elements),
+                        "selector": selector
+                    })
                     break
 
             if not result_elements:

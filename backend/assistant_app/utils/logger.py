@@ -34,7 +34,6 @@ class StructuredLogger:
             "event_type": event_type,
             "user_email": user_email,
             "success": success,
-            "timestamp": datetime.utcnow().isoformat(),
             "ip_address": ip_address,
             "details": details or {}
         }
@@ -47,7 +46,6 @@ class StructuredLogger:
             "user_email": user_email,
             "action": action,
             "resource": resource,
-            "timestamp": datetime.utcnow().isoformat(),
             "details": details or {}
         }
         self.logger.info(f"User action: {json.dumps(log_data)}")
@@ -57,12 +55,42 @@ class StructuredLogger:
         log_data = {
             "error_type": type(error).__name__,
             "error_message": str(error),
-            "timestamp": datetime.utcnow().isoformat(),
             "context": context or {}
         }
         self.logger.error(f"Error: {json.dumps(log_data)}")
+
+    def log_info(self, message: str, context: Dict[str, Any] = None):
+        """Log informational messages."""
+        log_data = {
+            "message": message,
+            "context": context or {}
+        }
+        self.logger.info(f"Info: {json.dumps(log_data)}")
+
+    def log_debug(self, message: str, context: Dict[str, Any] = None):
+        """Log debug messages."""
+        log_data = {
+            "message": message,
+            "context": context or {}
+        }
+        self.logger.debug(f"Debug: {json.dumps(log_data)}")
+
+    def log_warning(self, message: str, context: Dict[str, Any] = None):
+        """Log warning messages."""
+        log_data = {
+            "message": message,
+            "context": context or {}
+        }
+        self.logger.warning(f"Warning: {json.dumps(log_data)}")
 
 # Global logger instances
 auth_logger = StructuredLogger("auth")
 user_logger = StructuredLogger("user")
 error_logger = StructuredLogger("error")
+chat_logger = StructuredLogger("chat")
+task_logger = StructuredLogger("task")
+gmail_logger = StructuredLogger("gmail")
+webhook_logger = StructuredLogger("webhook")
+streamlit_logger = StructuredLogger("streamlit")
+memory_logger = StructuredLogger("memory")
+agent_logger = StructuredLogger("agent")

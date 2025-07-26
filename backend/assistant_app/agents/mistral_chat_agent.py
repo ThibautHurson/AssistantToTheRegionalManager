@@ -13,6 +13,7 @@ from mcp.client.stdio import stdio_client
 from backend.assistant_app.agents.base_agent import BaseAgent
 from backend.assistant_app.memory.context_manager import HybridContextManager
 from backend.assistant_app.utils.handle_errors import retry_on_rate_limit_async
+from backend.assistant_app.utils.logger import agent_logger, error_logger
 
 class MistralMCPChatAgent(BaseAgent):
     """
@@ -43,7 +44,11 @@ class MistralMCPChatAgent(BaseAgent):
         retry_on=sdkerror.SDKError
     )
     async def call_mistral_with_retry(self, messages, tools):
-        print("Calling mistral")
+        agent_logger.log_debug("Calling Mistral API", {
+            "model": self.model,
+            "message_count": len(messages),
+            "tool_count": len(tools) if tools else 0
+        })
         response = await self.client.chat.complete_async(
             model=self.model,
             messages=messages,
@@ -76,7 +81,9 @@ class MistralMCPChatAgent(BaseAgent):
         response = await self.session.list_tools()
         self.mcp_tools = response.tools
 
-        print("\nConnected to server with tools:", [tool.name for tool in self.mcp_tools])
+        agent_logger.log_info("Connected to server with tools", {
+            "tool_count": len(self.mcp_tools)
+        })
 
     async def connect_to_fetch_server(self):
         """Connect to the official MCP Fetch server for web content fetching."""
@@ -103,11 +110,15 @@ class MistralMCPChatAgent(BaseAgent):
             # Add fetch tools to the main tools list
             self.mcp_tools.extend(fetch_tools)
 
-            print(f"Connected to fetch server with tools: {[tool.name for tool in fetch_tools]}")
+            agent_logger.log_info("Connected to fetch server with tools", {
+                "tool_count": len(fetch_tools)
+            })
 
         except Exception as e:
-            print(f"Warning: Could not connect to fetch server: {e}")
-            print("Web fetching capabilities will not be available")
+            error_logger.log_warning("Could not connect to fetch server", {
+                "error": str(e)
+            })
+            agent_logger.log_warning("Web fetching capabilities will not be available")
             self.fetch_session = None
 
     def _cleanup_source_references(self, content: str) -> str:
@@ -189,7 +200,11 @@ class MistralMCPChatAgent(BaseAgent):
             })
 
         for step in range(self.max_steps):
-            print(f"Step {step+1}")
+            agent_logger.log_debug(f"Step {step+1}", {
+                "step": step + 1,
+                "message_count": len(llm_context),
+                "tool_count": len(tool_schemas) if tool_schemas else 0
+            })
             response = await self.call_mistral_with_retry(
                 messages=llm_context,
                 tools=tool_schemas,
@@ -204,11 +219,17 @@ class MistralMCPChatAgent(BaseAgent):
             if message.tool_calls:
                 tool_outputs = []
                 for tool_call in message.tool_calls:
-                    print(f"Tool chosen by Mistral: {tool_call.function.name}")
-                    print(f"Tool arguments: {tool_call.function.arguments}")
                     tool_name = tool_call.function.name
                     tool_args = json.loads(tool_call.function.arguments)
-
+                    
+                    # Log tool call with parameters
+                    agent_logger.log_info(f"Tool called: {tool_name}", {
+                        "tool_name": tool_name,
+                        "parameters": tool_args,
+                        "user_email": user_email,
+                        "session_id": session_id
+                    })
+                    
                     # Add user_email for tools that need it
                     if tool_name not in ['smart_web_search', 'search_with_sources']:
                         tool_args["user_email"] = user_email
@@ -256,7 +277,10 @@ class MistralMCPChatAgent(BaseAgent):
 
                         # Graceful error handling with contextual prompt
                         error_content = f"Tool '{tool_name}' failed: {str(e)}. {error_context}"
-                        print(f"Tool error: {error_content}")
+                        error_logger.log_error(f"Tool error: {error_content}", {
+                            "tool_name": tool_name,
+                            "error": str(e)
+                        })
                         tool_outputs.append({
                             "tool_call_id": tool_call.id,
                             "role": "tool",
@@ -273,12 +297,25 @@ class MistralMCPChatAgent(BaseAgent):
             else:
                 content = message.content
                 await context_manager.save_new_messages(session_id, new_messages_this_turn)
-                print(llm_context)
+                agent_logger.log_info("LLM gave final answer, saving messages and returning content", {
+                    "step": step + 1,
+                    "message_count": len(llm_context),
+                    "new_message_count": len(new_messages_this_turn),
+                    "session_id": session_id,
+                    "user_email": user_email,
+                })
                 return self._cleanup_source_references(content)
 
         # Fallback if max_steps is reached
         final_content = llm_context[-1].get("content", "Max steps reached.")
         await context_manager.save_new_messages(session_id, new_messages_this_turn)
+        agent_logger.log_info("Max steps reached, returning final content", {
+            "max_steps": self.max_steps,
+            "message_count": len(llm_context),
+            "new_message_count": len(new_messages_this_turn),
+            "session_id": session_id,
+            "user_email": user_email,
+        })
         return self._cleanup_source_references(final_content)
 
     async def cleanup(self):
@@ -293,13 +330,14 @@ class MistralMCPChatAgent(BaseAgent):
         results = user_data_service.clear_user_data(user_email)
 
         if results["success"]:
-            print(
-                f"Successfully cleared all data for user: {user_email}"
+            agent_logger.log_info(
+                f"Successfully cleared all data for user: {user_email}",
+                {"user_email": user_email}
             )
         else:
-            print(
-                f"Completed data deletion for user: {user_email} "
-                f"with errors: {results['errors']}"
+            error_logger.log_warning(
+                f"Completed data deletion for user: {user_email} with errors",
+                {"user_email": user_email, "errors": results["errors"]}
             )
 
         return results

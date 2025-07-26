@@ -3,6 +3,7 @@ import httpx
 import os
 from dotenv import load_dotenv
 from backend.assistant_app.utils.redis_saver import load_chat_sessions_from_redis, load_current_session_from_redis
+from backend.assistant_app.utils.logger import streamlit_logger
 
 load_dotenv()
 FASTAPI_URI = os.getenv("FASTAPI_URI", "http://localhost:8000")
@@ -19,6 +20,7 @@ def show_login_form():
         if submit_button:
             if email and password:
                 try:
+                    streamlit_logger.log_info("Attempting login", {"email": email})
                     response = httpx.post(
                         f"{FASTAPI_URI}/auth/login",
                         json={"email": email, "password": password},
@@ -27,7 +29,8 @@ def show_login_form():
 
                     if response.status_code == 200:
                         data = response.json()
-                        if data.get("success"):
+                        streamlit_logger.log_info("Login response received", {"data": data})
+                        if data.get("session_token"):
                             # Store session token in session state
                             st.session_state.session_token = data.get("session_token")
                             st.session_state.user_email = data.get("user_email")
@@ -50,19 +53,30 @@ def show_login_form():
                                     st.session_state.chat_sessions = {}
                                     st.session_state.current_session_id = None
                             except Exception as e:
-                                print(f"Error loading chat sessions: {e}")
+                                streamlit_logger.log_error(e, {"context": "load_chat_sessions"})
                                 st.session_state.chat_sessions = {}
                                 st.session_state.current_session_id = None
 
+                            streamlit_logger.log_info("Login successful, setting session state", {
+                                "session_token": data.get("session_token")[:10] + "...",
+                                "user_email": data.get("user_email"),
+                                "authenticated": True
+                            })
                             st.success("Login successful!")
-                            st.rerun()
+                            st.rerun()  # Need to rerun to update the main app state
                         else:
+                            streamlit_logger.log_warning("No session token in response", {"data": data})
                             st.error(data.get("message", "Login failed"))
                     else:
                         error_data = response.json()
+                        streamlit_logger.log_error("Login failed with status", {
+                            "status_code": response.status_code,
+                            "error": error_data
+                        })
                         st.error(error_data.get("detail", "Login failed"))
 
                 except Exception as e:
+                    streamlit_logger.log_error(e, {"context": "login_request", "email": email})
                     st.error(f"Connection error: {str(e)}")
             else:
                 st.error("Please enter both email and password")
@@ -85,6 +99,7 @@ def show_register_form():
                     st.error("Password must be at least 6 characters long")
                 else:
                     try:
+                        streamlit_logger.log_info("Attempting registration", {"email": email})
                         response = httpx.post(
                             f"{FASTAPI_URI}/auth/register",
                             json={"email": email, "password": password},
@@ -93,17 +108,21 @@ def show_register_form():
 
                         if response.status_code == 200:
                             data = response.json()
-                            if data.get("success"):
+                            streamlit_logger.log_info("Registration response received", {"data": data})
+                            if data.get("message"):
                                 st.success("Registration successful! Please log in.")
                                 st.session_state.show_login = True
                                 st.rerun()
                             else:
+                                streamlit_logger.log_warning("Registration failed - no message in response", {"data": data})
                                 st.error(data.get("message", "Registration failed"))
                         else:
                             error_data = response.json()
+                            streamlit_logger.log_error("Registration failed with status", {"status_code": response.status_code, "error": error_data})
                             st.error(error_data.get("detail", "Registration failed"))
 
                     except Exception as e:
+                        streamlit_logger.log_error(e, {"context": "registration_request", "email": email})
                         st.error(f"Connection error: {str(e)}")
             else:
                 st.error("Please fill in all fields")
@@ -130,14 +149,17 @@ def logout_user():
     """Logout the current user."""
     if "session_token" in st.session_state:
         try:
+            streamlit_logger.log_info("Attempting logout", {"user_email": st.session_state.get("user_email")})
             response = httpx.post(
                 f"{FASTAPI_URI}/auth/logout",
                 params={"session_token": st.session_state.session_token},
                 timeout=10
             )
             if response.status_code == 200:
+                streamlit_logger.log_info("Logout successful")
                 st.success("Logged out successfully")
         except Exception as e:
+            streamlit_logger.log_error(e, {"context": "logout_request"})
             st.error(f"Logout error: {str(e)}")
 
     # Clear authentication-related session state but preserve chat sessions
@@ -154,9 +176,11 @@ def logout_user():
 def validate_session():
     """Validate current session and return user info."""
     if "session_token" not in st.session_state:
+        streamlit_logger.log_info("No session token in session state")
         return None
 
     try:
+        streamlit_logger.log_info("Validating session", {"session_token": st.session_state.session_token[:10] + "..."})
         response = httpx.get(
             f"{FASTAPI_URI}/auth/validate",
             params={"session_token": st.session_state.session_token},
@@ -164,8 +188,10 @@ def validate_session():
         )
 
         if response.status_code == 200:
+            streamlit_logger.log_info("Session validation successful")
             return response.json()
         else:
+            streamlit_logger.log_warning("Session validation failed", {"status_code": response.status_code})
             # Session is invalid, clear authentication data but preserve chat sessions
             auth_keys_to_clear = ["session_token", "user_email", "authenticated", "chat_history", "chat_session_id", "message_limit"]
             for key in auth_keys_to_clear:
@@ -174,5 +200,5 @@ def validate_session():
             return None
 
     except Exception as e:
-        print(f"Session validation error: {e}")
+        streamlit_logger.log_error(e, {"context": "session_validation"})
         return None

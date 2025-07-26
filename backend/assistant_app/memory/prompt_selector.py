@@ -4,6 +4,7 @@ from typing import List, Dict
 import numpy as np
 import faiss
 from sentence_transformers import SentenceTransformer
+from backend.assistant_app.utils.logger import memory_logger
 
 class SemanticPromptSelector:
     """
@@ -72,9 +73,9 @@ class SemanticPromptSelector:
                 self.prompt_mapping = {
                     int(k): v for k, v in json.load(f).items()
                 }
-            print(
-                f"Loaded existing prompt selector index with {self.index.ntotal} prompts"
-            )
+            memory_logger.log_info("Loaded existing prompt selector index", {
+                "prompt_count": self.index.ntotal
+            })
         else:
             # Create new index
             self._create_new_index()
@@ -98,9 +99,9 @@ class SemanticPromptSelector:
 
             # Save the index and mapping
             self._save_index()
-            print(
-                f"Created new prompt selector index with {len(prompt_names)} prompts"
-            )
+            memory_logger.log_info("Created new prompt selector index", {
+                "prompt_count": len(prompt_names)
+            })
 
     def _save_index(self):
         """Save FAISS index and mapping."""
@@ -150,10 +151,11 @@ class SemanticPromptSelector:
             if similarity >= threshold:
                 prompt_name = self.prompt_mapping[idx]
                 selected_prompts.append(prompt_name)
-                print(
-                    f"Selected prompt '{prompt_name}' with similarity: "
-                    f"{similarity:.3f} (distance: {dist:.3f})"
-                )
+                memory_logger.log_debug("Selected prompt", {
+                    "prompt_name": prompt_name,
+                    "similarity": float(round(similarity, 3)),
+                    "distance": float(round(dist, 3))
+                })
 
         return selected_prompts
 
@@ -190,7 +192,7 @@ class SemanticPromptSelector:
 
         # Save updated index
         self._save_index()
-        print(f"Added prompt '{prompt_name}' to index")
+        memory_logger.log_info("Added prompt to index", {"prompt_name": prompt_name})
 
 class HybridPromptSelector:
     """

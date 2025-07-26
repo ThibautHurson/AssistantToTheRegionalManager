@@ -3,6 +3,7 @@ import json
 import faiss
 import numpy as np
 from sentence_transformers import SentenceTransformer
+from backend.assistant_app.utils.logger import memory_logger
 
 class VectorStoreManager:
     def __init__(self,
@@ -46,8 +47,9 @@ class VectorStoreManager:
                 self.next_doc_id = max(self.doc_mapping.keys()) + 1 if self.doc_mapping else 0
             else:
                 # If mapping is missing, the index is out of sync. Reset.
-                print("Warning: Index found but mapping is missing for user "
-                      f"{self.user_id}. Resetting index.")
+                memory_logger.log_warning("Index found but mapping is missing, resetting index", {
+                    "user_id": self.user_id
+                })
                 self._reset_index()
         else:
             # If index doesn't exist, create a new one

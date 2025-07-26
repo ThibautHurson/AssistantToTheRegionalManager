@@ -16,6 +16,7 @@ from backend.assistant_app.services.task_detector import TaskDetector
 from backend.assistant_app.models.task_manager import TaskManager
 from backend.assistant_app.models.task import Task as TaskModel
 from backend.assistant_app.api_integration.db import get_db
+from backend.assistant_app.utils.logger import webhook_logger, error_logger
 
 load_dotenv()
 router = APIRouter()
@@ -36,13 +37,13 @@ def is_notification_too_old(publish_time: str) -> bool:
         age = datetime.now(publish_dt.tzinfo) - publish_dt
         return age.total_seconds() > MAX_NOTIFICATION_AGE
     except Exception as e:
-        print(f"Error parsing publish time {publish_time}: {e}")
+        error_logger.log_error(e, {"context": "parse_publish_time", "publish_time": publish_time})
         return True  # If we can't parse the time, skip it
 
 @router.post("/gmail/push")
 async def gmail_webhook(request: Request):
     data = await request.json()
-    print("Webhook received data:", data)
+    webhook_logger.log_info("Webhook received", {"data": data})
     message = data.get("message", {})
     message_data = message.get("data")
 
@@ -52,17 +53,17 @@ async def gmail_webhook(request: Request):
     try:
         decoded = json.loads(base64.b64decode(message_data).decode("utf-8"))
         email_address = decoded["emailAddress"]
-        print("New email notification for:", email_address)
+        webhook_logger.log_info("New email notification", {"email_address": email_address})
         history_id = str(decoded["historyId"])
         publish_time = message.get("publishTime") or message.get("publish_time")
 
         # Skip old notifications
         if is_notification_too_old(publish_time):
-            print(f"Skipping old notification from {publish_time}")
+            webhook_logger.log_info("Skipping old notification", {"publish_time": publish_time})
             return {"status": "skipped", "reason": "notification_too_old"}
 
     except Exception as e:
-        print(f"Error decoding message data: {e}")
+        error_logger.log_error(e, {"context": "decode_message_data"})
         return JSONResponse({"error": "Invalid message data"}, status_code=400)
 
     """
@@ -70,27 +71,30 @@ async def gmail_webhook(request: Request):
     you get from the webhook often does not contain the new message yet, we fetch the previous historyId
     from redis memory
     """
-    print(f"Loading history ID from Redis for email: {email_address}")
+    webhook_logger.log_debug("Loading history ID from Redis", {"email_address": email_address})
     start_history_id = load_from_redis(email_address, HISTORY_KEY)
-    print(f"Loaded history ID: {start_history_id}")
+    webhook_logger.log_debug("Loaded history ID", {"start_history_id": start_history_id})
 
     if not start_history_id:
         start_history_id = str(int(history_id) - 10)  # fallback for first-time
 
     elif start_history_id and (history_id < start_history_id):
-        print(f"Skipping notification - history ID {history_id} is older than {start_history_id}")
+        webhook_logger.log_info("Skipping notification - history ID too old", {
+            "history_id": history_id,
+            "start_history_id": start_history_id
+        })
         return {"status": "skipped", "reason": "history_id_too_old"}
 
     # Update historyId in redis
     save_to_redis(email_address, HISTORY_KEY, history_id)
 
-    print(f"Loading credentials for email: {email_address}")
+    webhook_logger.log_debug("Loading credentials", {"email_address": email_address})
     creds = load_credentials(email_address)
     if not creds:
-        print(f"No credentials found in Redis for email: {email_address}")
+        webhook_logger.log_warning("No credentials found", {"email_address": email_address})
         return JSONResponse({"error": "User not authenticated"}, status_code=401)
 
-    print("Credentials loaded successfully")
+    webhook_logger.log_info("Credentials loaded successfully", {"email_address": email_address})
     service = build("gmail", "v1", credentials=creds)
 
     # Fetch history since history_id to get new messages
@@ -101,7 +105,7 @@ async def gmail_webhook(request: Request):
             historyTypes=['messageAdded']
         ).execute()
     except Exception as e:
-        print("Error fetching history:", e)
+        error_logger.log_error(e, {"context": "fetch_history", "email_address": email_address})
         return JSONResponse({"error": str(e)}, status_code=500)
 
     messages = []
@@ -111,10 +115,10 @@ async def gmail_webhook(request: Request):
                 for msg in record["messagesAdded"]:
                     msg_id = msg["message"]["id"]
                     messages.append(msg_id)
-    print("Number of messages:", len(messages))
+    webhook_logger.log_info("Number of messages", {"count": len(messages)})
 
     if not messages:
-        print("No new messages to process")
+        webhook_logger.log_info("No new messages to process")
         return JSONResponse({"status": "ok", "messages_fetched": 0, "tasks_created": []},
                             status_code=200)
 
@@ -137,7 +141,7 @@ async def gmail_webhook(request: Request):
                     # Deduplication check
                     existing_task = db.query(TaskModel).filter_by(gmail_message_id=msg_id).first()
                     if existing_task:
-                        print(f"Task for Gmail message {msg_id} already exists, skipping.")
+                        webhook_logger.log_info("Task already exists, skipping", {"msg_id": msg_id})
                         continue
                 finally:
                     db.close()
@@ -145,12 +149,15 @@ async def gmail_webhook(request: Request):
                 # Properly await the get_gmail call
                 msg_data, msg_history_id, labels = await get_gmail(service, msg_id)
                 if "INBOX" not in labels:
-                    print(f"Skipping message {msg_id} because it is not in INBOX")
-                    print(f"Labels: {labels}")
+                    webhook_logger.log_info("Skipping message - not in INBOX", {
+                        "msg_id": msg_id,
+                        "labels": labels,
+                        "email_address": email_address
+                    })
                     continue
                 newest_history_id = max(newest_history_id, msg_history_id)
                 if not msg_data:
-                    print(f"No content received for message {msg_id}")
+                    webhook_logger.log_warning("No content received", {"msg_id": msg_id})
                     continue
 
                 # Add message data and the task detection coroutine to the queue
@@ -165,7 +172,7 @@ async def gmail_webhook(request: Request):
                 results.append(msg_data) # Keep for original counting logic
 
             except Exception as e:
-                print(f"Error fetching message {msg_id}: {e}")
+                error_logger.log_error(e, {"context": "fetch_message", "msg_id": msg_id})
                 continue
 
         # Process batch of tasks if any messages are in the queue
@@ -177,12 +184,18 @@ async def gmail_webhook(request: Request):
                 for i, item in enumerate(processing_queue):
                     task_details = task_results[i]
                     if isinstance(task_details, Exception):
-                        print(f"Task detection error for {item['msg_id']}: {task_details}")
+                        error_logger.log_error(task_details, {
+                            "context": "task_detection",
+                            "msg_id": item['msg_id'],
+                            "email_address": email_address
+                        })
                         continue
 
                     if task_details:
-                        print(f"Task detected in email: {task_details.get('title',
-                                                                          'Untitled Task')}")
+                        webhook_logger.log_info("Task detected in email", {
+                            "title": task_details.get('title', 'Untitled Task'),
+                            "email_address": email_address
+                        })
                         try:
                             # Use the correct msg_id and msg_data from the item in the queue
                             task = task_manager.add_task(
@@ -194,22 +207,25 @@ async def gmail_webhook(request: Request):
                                 msg_id=item['msg_id']
                             )
                             tasks_created.append(task.ticket_id)
-                            print(f"Created task with ID: {task.ticket_id}")
+                            webhook_logger.log_info("Created task", {"task_id": task.ticket_id})
                         except Exception as e:
-                            print(f"Error creating task for message {item['msg_id']}: {e}")
+                            error_logger.log_error(e, {"context": "create_task", "msg_id": item['msg_id']})
             except Exception as e:
-                print(f"Error processing batch: {e}")
+                error_logger.log_error(e, {"context": "process_batch"})
 
         # Add delay between batches to respect rate limits
         if i + MAX_CONCURRENT_TASKS < len(messages):
             await asyncio.sleep(RATE_LIMIT_DELAY)
 
-    print(f"Newest history ID: {newest_history_id}")
+    webhook_logger.log_info("Newest history ID", {"newest_history_id": newest_history_id})
     # Update historyId in redis with the newest historyId from the messages
     save_to_redis(email_address, HISTORY_KEY, newest_history_id)
 
-    print(f"Fetched {len(results)} messages.")
-    print(f"Created {len(tasks_created)} tasks: {tasks_created}")
+    webhook_logger.log_info("Processing completed", {
+        "messages_fetched": len(results),
+        "tasks_created": tasks_created,
+        "email_address": email_address
+    })
 
     return JSONResponse({
         "status": "ok",

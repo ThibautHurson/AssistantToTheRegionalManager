@@ -1,6 +1,7 @@
 import os
 from dotenv import load_dotenv
 from mistralai import Mistral
+from backend.assistant_app.utils.logger import error_logger
 
 load_dotenv()
 
@@ -39,5 +40,5 @@ class SummarizationManager:
             )
             return response.choices[0].message.content.strip()
         except Exception as e:
-            print(f"Error during summarization: {e}")
+            error_logger.log_error(e, {"context": "summarization"})
             return f"Error summarizing conversation: {e}"

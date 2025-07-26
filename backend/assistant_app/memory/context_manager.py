@@ -3,6 +3,7 @@ from backend.assistant_app.memory.redis_history_store import RedisHistoryStore
 from backend.assistant_app.memory.faiss_vector_store import VectorStoreManager
 from backend.assistant_app.memory.summarizer import SummarizationManager
 from backend.assistant_app.memory.prompt_selector import HybridPromptSelector
+from backend.assistant_app.utils.logger import memory_logger, error_logger
 
 class HybridContextManager:
     def __init__(
@@ -49,7 +50,7 @@ class HybridContextManager:
 
             return ""
         except Exception as e:
-            print(f"Error extracting text from MCP prompt: {e}")
+            error_logger.log_error(e, {"context": "extract_text_from_mcp_prompt"})
             return ""
 
     async def build_dynamic_system_prompt(self, user_query: str = "") -> str:
@@ -69,7 +70,7 @@ class HybridContextManager:
                         "manage their tasks and emails."
                     )
             except Exception as e:
-                print(f"Could not fetch system_base prompt: {e}")
+                error_logger.log_error(e, {"context": "fetch_system_base_prompt"})
                 base_prompt = (
                     "You are an intelligent personal assistant that helps users "
                     "manage their tasks and emails."
@@ -81,19 +82,17 @@ class HybridContextManager:
             )
 
         # Add current datetime information to the base prompt
-        try:
-            from datetime import datetime
-            current_datetime = datetime.utcnow().strftime(
-                "%Y-%m-%d %H:%M:%S UTC"
-            )
+        from datetime import datetime
+        current_datetime = datetime.utcnow().strftime(
+            "%Y-%m-%d %H:%M:%S UTC"
+        )
 
-            datetime_info = (
-                f"\n\n**CURRENT DATETIME:** {current_datetime}\n\n"
-            )
+        datetime_info = (
+            f"\n\n**CURRENT DATETIME:** {current_datetime}\n\n"
+        )
 
-            base_prompt += datetime_info
-        except Exception as e:
-            print(f"Could not add current datetime info: {e}")
+        base_prompt += datetime_info
+
 
         # Use semantic prompt selector to find relevant prompts
         contextual_prompts = []
@@ -114,7 +113,7 @@ class HybridContextManager:
                     if prompt_text:
                         contextual_prompts.append(prompt_text)
                 except Exception as e:
-                    print(f"Could not fetch {prompt_name} prompt: {e}")
+                    error_logger.log_error(e, {"context": "fetch_prompt", "prompt_name": prompt_name})
 
         # Combine all prompts
         all_prompts = [base_prompt] + contextual_prompts
@@ -124,7 +123,7 @@ class HybridContextManager:
         """
         Builds a complete hybrid context for the LLM including dynamic system prompt.
         """
-        print(f"Getting context for session_id: {session_id}")
+        memory_logger.log_debug("Getting context", {"session_id": session_id})
         context = []
 
         # 1. Build and add dynamic system prompt first
@@ -153,9 +152,10 @@ class HybridContextManager:
             recent_messages, full_recent_history
         )
 
-        print(
-            f"Found {len(recent_messages)} recent messages for session {session_id}"
-        )
+        memory_logger.log_debug("Found recent messages", {
+            "count": len(recent_messages),
+            "session_id": session_id
+        })
 
         # 5. Assemble the informational context for the 'assistant' to consider
         informational_context = (
@@ -191,9 +191,10 @@ class HybridContextManager:
         """
         Saves new messages and updates long-term memory structures.
         """
-        print(
-            f"Saving {len(new_messages)} new messages for session_id: {session_id}"
-        )
+        memory_logger.log_debug("Saving new messages", {
+            "count": len(new_messages),
+            "session_id": session_id
+        })
 
         # 1. Save new messages to Redis list (short-term memory)
         self.history_store.append_messages(session_id, new_messages)
@@ -217,7 +218,7 @@ class HybridContextManager:
         """
         Updates the conversation summary.
         """
-        print(f"Updating summary for session {session_id}...")
+        memory_logger.log_info("Updating summary", {"session_id": session_id})
         # Get the current summary
         summary_key = self._get_summary_key(session_id)
         current_summary = self.history_store.redis.get(summary_key) or ""
@@ -252,7 +253,7 @@ class HybridContextManager:
         # Save the updated summary to Redis
         if "Error" not in new_summary:
             self.history_store.redis.set(summary_key, new_summary)
-            print(f"Summary for session {session_id} updated.")
+            memory_logger.log_info("Summary updated", {"session_id": session_id})
 
     def _fix_tool_message_alignment(
         self, messages: list[dict], full_history: list[dict]
@@ -311,13 +312,10 @@ class HybridContextManager:
                 else:
                     # Skip this assistant message AND all following tool responses to
                     # avoid orphaned tools
-                    print(
-                        "Warning: Skipping assistant message with incomplete tool responses"
-                    )
-                    print(
-                        f"Expected {len(tool_call_ids)} responses, "
-                        f"found {len(responses_found)}"
-                    )
+                    memory_logger.log_warning("Skipping assistant message with incomplete tool responses", {
+                        "expected": len(tool_call_ids),
+                        "found": len(responses_found)
+                    })
                     # Skip to after all tool responses to avoid orphaned tools
                     while j < len(context) and context[j].get("role") == "tool":
                         j += 1
@@ -325,7 +323,7 @@ class HybridContextManager:
             elif msg.get("role") == "tool":
                 # Skip orphaned tool responses (they should only appear after
                 # assistant messages with tool_calls)
-                print("Warning: Skipping orphaned tool response")
+                memory_logger.log_warning("Skipping orphaned tool response")
                 i += 1
             else:
                 validated_context.append(msg)
@@ -336,7 +334,7 @@ class HybridContextManager:
     def clear_user_data(self):
         """Clear memory-related user data (vector store and Redis).
         For complete user data deletion including tasks, use UserDataService."""
-        print(f"Starting memory data deletion for user: {self.user_id}")
+        memory_logger.log_info("Starting memory data deletion", {"user_id": self.user_id})
 
         # Clear vector store data
         self.vector_store.clear_user_data()
@@ -344,9 +342,11 @@ class HybridContextManager:
         # Clear Redis history data
         deleted_count = self.history_store.delete_history(self.user_id)
 
-        print(f"Completed memory data deletion for user: {self.user_id}")
-        print("- Vector store: Cleared")
-        print(f"- Redis keys: {deleted_count} deleted")
+        memory_logger.log_info("Completed memory data deletion", {
+            "user_id": self.user_id,
+            "vector_store_cleared": True,
+            "redis_keys_deleted": deleted_count
+        })
 
         return {
             "user_id": self.user_id,

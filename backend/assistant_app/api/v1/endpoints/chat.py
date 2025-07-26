@@ -7,6 +7,7 @@ from pydantic import BaseModel
 from backend.assistant_app.agents.mistral_chat_agent import MistralMCPChatAgent
 from backend.assistant_app.api_integration.google_token_store import load_credentials
 from backend.assistant_app.services.auth_service import auth_service
+from backend.assistant_app.utils.logger import chat_logger, error_logger
 
 with open("backend/assistant_app/configs/chat_config.json") as f:
     config = json.load(f)
@@ -50,7 +51,7 @@ async def chat(
     - Swapping out implementations without touching route logic
     4. Declare clear contracts — your route declares what it needs, and FastAPI wires it in.
     """
-    print("Hit the chat endpoint")
+    chat_logger.log_info("Chat endpoint hit", {"session_token": payload.session_token[:8] + "..."})
 
     # Validate session and get user
     user = auth_service.validate_session(payload.session_token)
@@ -71,8 +72,10 @@ async def chat(
     # Generate or use provided chat session ID
     chat_session_id = payload.chat_session_id or f"{user.email}_{str(uuid.uuid4())[:8]}"
 
-    print(f"Using chat_session_id: {chat_session_id}")
-    print(f"User email: {user.email}")
+    chat_logger.log_info("Chat session details", {
+        "chat_session_id": chat_session_id,
+        "user_email": user.email
+    })
 
     try:
         # Use the chat_session_id as the session_id for the LLM to ensure separate
@@ -80,9 +83,11 @@ async def chat(
         response = await chat_agent.run(payload.input, chat_session_id, user.email)
         return {"response": response, "chat_session_id": chat_session_id}
     except Exception as e:
-        print(f"Error in chat endpoint: {e}")
-        import traceback
-        print(f"Traceback: {traceback.format_exc()}")
+        error_logger.log_error(e, {
+            "chat_session_id": chat_session_id,
+            "user_email": user.email,
+            "input_length": len(payload.input)
+        })
         raise HTTPException(
             status_code=500,
             detail=f"Error processing chat request: {str(e)}"
