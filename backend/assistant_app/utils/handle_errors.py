@@ -7,6 +7,7 @@ from typing import Callable, Any, Union, List, Type
 import httpx
 from mistralai.models import sdkerror
 from googleapiclient.errors import HttpError
+from backend.assistant_app.utils.logger import error_logger
 
 def handle_httpx_errors(func):
     @functools.wraps(func)
@@ -69,22 +70,28 @@ def retry_on_rate_limit_async(
                     # Handle HttpError (Gmail API)
                     if isinstance(e, HttpError):
                         if e.resp.status == 404 and return_none_on_404:
-                            print("Resource not found (404)")
+                            error_logger.log_error(e, {"context": "Resource not found (404)"})
                             return None
                         if retry_on_status and e.resp.status in retry_on_status:
                             if attempt < max_attempts - 1:
                                 wait = wait_seconds * (2 ** attempt)
-                                print(f"Retrying after {wait}s (attempt "
-                                      f"{attempt + 1}/{max_attempts})")
+                                error_logger.log_info(
+                                    f"Retrying after {wait}s (attempt {attempt + 1}/{max_attempts})",
+                                    {"exception": str(e), "status": e.resp.status}
+                                )
                                 await asyncio.sleep(wait)
                                 continue
-                        print(f"HTTP error: {e}")
+                        error_logger.log_error(e, {"context": "HTTP error in retry_on_rate_limit_async"})
                         return None
 
                     # Handle SDKError (Mistral)
                     if isinstance(e, sdkerror.SDKError):
                         if "429" in str(e) or "rate limit" in str(e).lower():
                             wait = wait_seconds * (2 ** attempt)
+                            error_logger.log_info(
+                                f"Retrying after {wait}s (attempt {attempt + 1}/{max_attempts}) due to SDKError",
+                                {"exception": str(e)}
+                            )
                             await asyncio.sleep(wait)
                             continue
                         raise
@@ -93,12 +100,19 @@ def retry_on_rate_limit_async(
                     if retry_on and isinstance(e, retry_on):
                         if attempt < max_attempts - 1:
                             wait = wait_seconds * (2 ** attempt)
-                            print(f"Retrying after {wait}s (attempt {attempt + 1}/{max_attempts})")
+                            error_logger.log_info(
+                                f"Retrying after {wait}s (attempt {attempt + 1}/{max_attempts})",
+                                {"exception": str(e)}
+                            )
                             await asyncio.sleep(wait)
                             continue
 
                     # If we get here, either we're out of retries or it's an unhandled error
                     if attempt == max_attempts - 1:
+                        error_logger.log_error(
+                            Exception(f"Retry failed after {max_attempts} attempts: {str(e)}"),
+                            {"exception": str(e)}
+                        )
                         raise Exception(f"Retry failed after {max_attempts} attempts: {str(e)}")
                     raise
             return None

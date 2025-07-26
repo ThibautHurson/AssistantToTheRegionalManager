@@ -1,6 +1,7 @@
 import os
 import json
 import redis
+from backend.assistant_app.utils.logger import memory_logger, error_logger
 
 class RedisHistoryStore:
     def __init__(self, ttl=None):
@@ -12,14 +13,19 @@ class RedisHistoryStore:
         """
         Retrieves the last n_messages from the conversation history list.
         """
-        print(f"Getting history for Redis key: {session_id}, n_messages: {n_messages}")
+
         # LRANGE session_id -n -1 fetches the last n elements.
         raw_messages = self.redis.lrange(session_id, -n_messages, -1)
         if not raw_messages:
-            print(f"No messages found for Redis key: {session_id}")
+            memory_logger.log_debug(f"No messages found for Redis key: {session_id}", {
+                "session_id": session_id
+            })
             return []
 
-        print(f"Found {len(raw_messages)} messages for Redis key: {session_id}")
+        memory_logger.log_debug(f"Found {len(raw_messages)} messages for Redis key: {session_id}", {
+            "session_id": session_id,
+            "message_count": len(raw_messages)
+        })
         # Messages are stored as JSON strings, so we need to decode them.
         return [json.loads(msg) for msg in raw_messages]
 
@@ -27,7 +33,10 @@ class RedisHistoryStore:
         """
         Appends a list of messages to the history list in Redis using RPUSH.
         """
-        print(f"Appending {len(messages)} messages to Redis key: {session_id}")
+        memory_logger.log_debug(f"Appending {len(messages)} messages to Redis key: {session_id}", {
+            "session_id": session_id,
+            "message_count": len(messages)
+        })
         # Using a pipeline is more efficient for multiple commands.
         pipe = self.redis.pipeline()
         for message in messages:
@@ -38,7 +47,10 @@ class RedisHistoryStore:
             pipe.expire(session_id, self.ttl)
 
         pipe.execute()
-        print(f"Successfully appended messages to Redis key: {session_id}")
+        memory_logger.log_debug(f"Successfully appended messages to Redis key: {session_id}", {
+            "session_id": session_id,
+            "message_count": len(messages)
+        })
 
     def delete_history(self, user_id: str) -> int:
         """
@@ -46,12 +58,11 @@ class RedisHistoryStore:
 
         Args:
             user_id: User's email address to identify their sessions
-
         Returns:
             int: Number of Redis keys deleted
         """
         if not user_id:
-            print("No user_id provided for delete_history")
+            memory_logger.log_warning("No user_id provided for delete_history")
             return 0
 
         try:
@@ -91,14 +102,23 @@ class RedisHistoryStore:
             if keys_to_delete:
                 # Delete all keys in a single operation
                 deleted_count = self.redis.delete(*keys_to_delete)
-                print(f"Deleted {deleted_count} Redis keys for user {user_id}")
-                print(f"Deleted keys: {keys_to_delete}")
+                memory_logger.log_info(f"Deleted {deleted_count} Redis keys for user {user_id}", {
+                    "user_id": user_id,
+                    "deleted_count": deleted_count,
+                    "deleted_keys": keys_to_delete
+                })
                 return deleted_count
-            print(f"No Redis keys found for user {user_id}")
-            return 0
-
+            else:
+                memory_logger.log_debug(f"No Redis keys found for user {user_id}", {
+                    "user_id": user_id
+                })
+                return 0
+                
         except Exception as e:
-            print(f"Error deleting history for user {user_id}: {e}")
+            error_logger.log_error(e, {
+                "user_id": user_id,
+                "operation": "delete_history"
+            })
             return 0
 
     def delete_session(self, session_id: str) -> bool:
@@ -107,7 +127,6 @@ class RedisHistoryStore:
 
         Args:
             session_id: The specific session ID to delete
-
         Returns:
             bool: True if deleted successfully, False otherwise
         """
@@ -120,11 +139,17 @@ class RedisHistoryStore:
             self.redis.delete(summary_key)
 
             if result > 0:
-                print(f"Deleted session history for {session_id}")
+                memory_logger.log_info(f"Deleted session history for {session_id}", {
+                    "session_id": session_id
+                })
                 return True
-            print(f"No session history found for {session_id}")
+            memory_logger.log_info(f"No session history found for {session_id}", {
+                "session_id": session_id
+            })
             return False
-
         except Exception as e:
-            print(f"Error deleting session {session_id}: {e}")
+            error_logger.log_error(e, {
+                "session_id": session_id,
+                "operation": "delete_session_history"
+            })
             return False

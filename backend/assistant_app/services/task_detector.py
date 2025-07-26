@@ -5,6 +5,7 @@ from mistralai import Mistral
 from mistralai.models import sdkerror
 from dotenv import load_dotenv
 from backend.assistant_app.utils.handle_errors import retry_on_rate_limit_async
+from backend.assistant_app.utils.logger import error_logger
 
 load_dotenv()
 
@@ -61,7 +62,7 @@ class TaskDetector:
         wait_seconds=1,
         retry_on=sdkerror.SDKError
     )
-    async def _extract_task_details(self, content: str) -> Dict[str, Any]:
+    async def _extract_task_details(self, content: str) -> Optional[Dict[str, Any]]:
         """Extract task details from email content using Mistral."""
         prompt = f"""Extract task details from this email content.
         Email content:
@@ -128,8 +129,5 @@ class TaskDetector:
                 task_details = await self._extract_task_details(full_content)
                 return task_details
         except Exception as e:
-            # Log the error if desired
-            print(f"Error in process_email: {e}")
+            error_logger.log_error(e, {"context": "process_email", "content_length": len(full_content)})
             return None
-
-        return None
