@@ -108,12 +108,12 @@ class RedisHistoryStore:
                     "deleted_keys": keys_to_delete
                 })
                 return deleted_count
-            else:
-                memory_logger.log_debug(f"No Redis keys found for user {user_id}", {
-                    "user_id": user_id
-                })
-                return 0
-                
+
+            memory_logger.log_debug(f"No Redis keys found for user {user_id}", {
+                "user_id": user_id
+            })
+            return 0
+
         except Exception as e:
             error_logger.log_error(e, {
                 "user_id": user_id,

@@ -81,7 +81,9 @@ def retry_on_rate_limit_async(
                                 )
                                 await asyncio.sleep(wait)
                                 continue
-                        error_logger.log_error(e, {"context": "HTTP error in retry_on_rate_limit_async"})
+                        error_logger.log_error(e, {
+                            "context": "HTTP error in retry_on_rate_limit_async",
+                        })
                         return None
 
                     # Handle SDKError (Mistral)
@@ -89,7 +91,7 @@ def retry_on_rate_limit_async(
                         if "429" in str(e) or "rate limit" in str(e).lower():
                             wait = wait_seconds * (2 ** attempt)
                             error_logger.log_info(
-                                f"Retrying after {wait}s (attempt {attempt + 1}/{max_attempts}) due to SDKError",
+                                f"Retrying after {wait}s (attempt {attempt + 1}/{max_attempts})",
                                 {"exception": str(e)}
                             )
                             await asyncio.sleep(wait)

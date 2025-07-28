@@ -209,7 +209,11 @@ async def gmail_webhook(request: Request):
                             tasks_created.append(task.ticket_id)
                             webhook_logger.log_info("Created task", {"task_id": task.ticket_id})
                         except Exception as e:
-                            error_logger.log_error(e, {"context": "create_task", "msg_id": item['msg_id']})
+                            error_logger.log_error(e, {
+                                "context": "create_task",
+                                "msg_id": item['msg_id'],
+                                "email_address": email_address
+                            })
             except Exception as e:
                 error_logger.log_error(e, {"context": "process_batch"})
 

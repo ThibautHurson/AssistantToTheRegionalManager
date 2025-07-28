@@ -48,9 +48,16 @@ class UserDataService:
                     if task_manager.delete_task(task.id):
                         deleted_count += 1
                     else:
-                        error_logger.log_info(f"Warning: Could not delete task {task.id}", {"user_email": user_email})
+                        error_logger.log_info(f"Warning: Could not delete task {task.id}", {
+                            "user_email": user_email,
+                            "task_id": task.id
+                        })
                 except Exception as e:
-                    error_logger.log_error(e, {"user_email": user_email, "operation": "database_tasks_delete", "task_id": task.id})
+                    error_logger.log_error(e, {
+                        "user_email": user_email,
+                        "operation": "database_tasks_delete",
+                        "task_id": task.id
+                    })
             results["database_tasks_deleted"] = deleted_count
             user_logger.log_info(f"Database tasks deleted", {
                 "user_email": user_email,
@@ -59,7 +66,10 @@ class UserDataService:
         except Exception as e:
             error_msg = f"Error deleting database tasks for {user_email}: {e}"
             results["errors"].append(error_msg)
-            error_logger.log_error(e, {"user_email": user_email, "operation": "database_tasks_delete"})
+            error_logger.log_error(e, {
+                "user_email": user_email,
+                "operation": "database_tasks_delete"
+            })
 
         # 3. Final status
         if results["errors"]:

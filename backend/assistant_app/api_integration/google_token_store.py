@@ -1,5 +1,6 @@
 import os
 import json
+from datetime import datetime
 from typing import Optional, Tuple
 from google_auth_oauthlib.flow import Flow
 from google.oauth2.credentials import Credentials
@@ -8,7 +9,6 @@ from googleapiclient.discovery import build
 import redis
 from dotenv import load_dotenv
 import httpx
-from datetime import datetime
 from backend.assistant_app.utils.redis_saver import save_to_redis
 from backend.assistant_app.services.auth_service import auth_service
 from backend.assistant_app.utils.logger import gmail_logger, error_logger
@@ -50,7 +50,9 @@ SCOPES = [
 def load_client_config():
     """Load OAuth2 client configuration from file."""
     if not os.path.exists(CLIENT_SECRET_FILE):
-        gmail_logger.log_warning("Client secret file not found", {"file_path": CLIENT_SECRET_FILE})
+        gmail_logger.log_warning("Client secret file not found", {
+            "file_path": CLIENT_SECRET_FILE
+        })
         return None
 
     with open(CLIENT_SECRET_FILE, 'r') as f:
@@ -69,7 +71,10 @@ def clear_credentials(user_email: str) -> bool:
             gmail_logger.log_info("Cleared credentials", {"user_email": user_email})
             return True
     except Exception as e:
-        error_logger.log_error(e, {"context": "clear_credentials", "user_email": user_email})
+        error_logger.log_error(e, {
+            "context": "clear_credentials",
+            "user_email": user_email
+        })
         return False
     return True
 
@@ -106,7 +111,9 @@ def load_credentials(user_email: str) -> Optional[Credentials]:
             error_logger.log_error(e, {"context": "refresh_token", "user_email": user_email})
             # If refresh fails due to scope issues, clear credentials to force new OAuth
             if "invalid_scope" in str(e):
-                gmail_logger.log_warning("Scope mismatch detected, clearing credentials", {"user_email": user_email})
+                gmail_logger.log_warning("Scope mismatch detected, clearing credentials", {
+                    "user_email": user_email
+                })
                 clear_credentials(user_email)
             return None
     gmail_logger.log_debug("Returning credentials", {"user_email": user_email})
@@ -137,7 +144,9 @@ def get_authorization_url(session_token: str) -> Tuple[Optional[str], Optional[F
     Get the authorization URL for Google OAuth2 flow.
     Returns a tuple of (auth_url, flow) or (None, None) if already authenticated.
     """
-    gmail_logger.log_debug("Getting authorization URL", {"session_token": session_token[:10] + "..."})
+    gmail_logger.log_debug("Getting authorization URL", {
+        "session_token": session_token[:10] + "..."
+    })
     # First check if we already have valid credentials for this user
     user = auth_service.validate_session(session_token)
     if not user:
@@ -212,18 +221,24 @@ def setup_gmail_watch(email: str, creds: Optional[Credentials] = None) -> bool:
 
 def exchange_code_for_token(code: str, state: str, session_token: str) -> Optional[Credentials]:
     """Exchange authorization code for access token."""
-    gmail_logger.log_debug("Exchanging code for token", {"session_token": session_token[:10] + "..."})
+    gmail_logger.log_debug("Exchanging code for token", {
+        "session_token": session_token[:10] + "..."
+    })
     try:
         # Validate session and get user
         user = auth_service.validate_session(session_token)
         if not user:
-            gmail_logger.log_warning("Invalid session token", {"session_token": session_token[:10] + "..."})
+            gmail_logger.log_warning("Invalid session token", {
+                "session_token": session_token[:10] + "..."
+            })
             return None
 
         # Load client configuration
         client_config = load_client_config()
         if not client_config:
-            gmail_logger.log_error("No client configuration found", {"session_token": session_token[:10] + "..."})
+            gmail_logger.log_error("No client configuration found", {
+                "session_token": session_token[:10] + "..."
+            })
             return None
 
         # Create Flow instance with explicit redirect URI that includes session_token
@@ -241,7 +256,9 @@ def exchange_code_for_token(code: str, state: str, session_token: str) -> Option
         # Get user email from ID token
         id_token = creds.id_token
         if not id_token:
-            gmail_logger.log_warning("No ID token found in credentials", {"user_email": user.email})
+            gmail_logger.log_warning("No ID token found in credentials", {
+                "user_email": user.email
+            })
             return None
 
         # Decode the JWT token
@@ -251,14 +268,22 @@ def exchange_code_for_token(code: str, state: str, session_token: str) -> Option
             decoded_token = jwt.decode(id_token, options={"verify_signature": False})
             oauth_email = decoded_token.get('email')
             if not oauth_email:
-                gmail_logger.log_warning("No email found in ID token", {"user_email": user.email})
+                gmail_logger.log_warning("No email found in ID token", {
+                    "user_email": user.email
+                })
                 return None
 
-            gmail_logger.log_info("Found email in ID token", {"oauth_email": oauth_email, "user_email": user.email})
+            gmail_logger.log_info("Found email in ID token", {
+                "oauth_email": oauth_email,
+                "user_email": user.email
+            })
 
             # Verify the OAuth email matches the user's email
             if oauth_email != user.email:
-                gmail_logger.log_warning("OAuth email doesn't match user email", {"oauth_email": oauth_email, "user_email": user.email})
+                gmail_logger.log_warning("OAuth email doesn't match user email", {
+                    "oauth_email": oauth_email,
+                    "user_email": user.email
+                })
                 return None
 
             # Save credentials using user email
@@ -269,11 +294,17 @@ def exchange_code_for_token(code: str, state: str, session_token: str) -> Option
 
             return creds
         except Exception as e:
-            error_logger.log_error(e, {"context": "decode_id_token", "user_email": user.email})
+            error_logger.log_error(e, {
+                "context": "decode_id_token",
+                "user_email": user.email
+            })
             return None
 
     except Exception as e:
-        error_logger.log_error(e, {"context": "exchange_code_for_token", "session_token": session_token[:10] + "..."})
+        error_logger.log_error(e, {
+            "context": "exchange_code_for_token",
+            "session_token": session_token[:10] + "..."
+        })
         return None
 
 def fetch_user_email(creds):
@@ -281,6 +312,8 @@ def fetch_user_email(creds):
         "Authorization": f"Bearer {creds.token}"
     }
 
-    resp = httpx.get("https://www.googleapis.com/oauth2/v3/userinfo", headers=headers, timeout=10)
+    resp = httpx.get("https://www.googleapis.com/oauth2/v3/userinfo",
+                     headers=headers,
+                     timeout=10)
     resp.raise_for_status()
     return resp.json()["email"]

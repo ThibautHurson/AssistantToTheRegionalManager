@@ -129,5 +129,8 @@ class TaskDetector:
                 task_details = await self._extract_task_details(full_content)
                 return task_details
         except Exception as e:
-            error_logger.log_error(e, {"context": "process_email", "content_length": len(full_content)})
+            error_logger.log_error(e, {
+                "context": "process_email",
+                "content_length": len(full_content)
+            })
             return None

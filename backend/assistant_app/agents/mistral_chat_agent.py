@@ -221,7 +221,7 @@ class MistralMCPChatAgent(BaseAgent):
                 for tool_call in message.tool_calls:
                     tool_name = tool_call.function.name
                     tool_args = json.loads(tool_call.function.arguments)
-                    
+
                     # Log tool call with parameters
                     agent_logger.log_info(f"Tool called: {tool_name}", {
                         "tool_name": tool_name,
@@ -229,7 +229,7 @@ class MistralMCPChatAgent(BaseAgent):
                         "user_email": user_email,
                         "session_id": session_id
                     })
-                    
+
                     # Add user_email for tools that need it
                     if tool_name not in ['smart_web_search', 'search_with_sources']:
                         tool_args["user_email"] = user_email
@@ -297,7 +297,7 @@ class MistralMCPChatAgent(BaseAgent):
             else:
                 content = message.content
                 await context_manager.save_new_messages(session_id, new_messages_this_turn)
-                agent_logger.log_info("LLM gave final answer, saving messages and returning content", {
+                agent_logger.log_info("LLM final answer, saving messages, returning content", {
                     "step": step + 1,
                     "message_count": len(llm_context),
                     "new_message_count": len(new_messages_this_turn),

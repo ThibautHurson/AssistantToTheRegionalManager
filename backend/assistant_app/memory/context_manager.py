@@ -113,7 +113,10 @@ class HybridContextManager:
                     if prompt_text:
                         contextual_prompts.append(prompt_text)
                 except Exception as e:
-                    error_logger.log_error(e, {"context": "fetch_prompt", "prompt_name": prompt_name})
+                    error_logger.log_error(e, {
+                        "context": "fetch_prompt",
+                        "prompt_name": prompt_name
+                    })
 
         # Combine all prompts
         all_prompts = [base_prompt] + contextual_prompts
@@ -312,10 +315,13 @@ class HybridContextManager:
                 else:
                     # Skip this assistant message AND all following tool responses to
                     # avoid orphaned tools
-                    memory_logger.log_warning("Skipping assistant message with incomplete tool responses", {
-                        "expected": len(tool_call_ids),
-                        "found": len(responses_found)
-                    })
+                    memory_logger.log_warning(
+                        "Skipping assistant message with incomplete tool responses",
+                        {
+                            "expected": len(tool_call_ids),
+                            "found": len(responses_found)
+                        }
+                    )
                     # Skip to after all tool responses to avoid orphaned tools
                     while j < len(context) and context[j].get("role") == "tool":
                         j += 1
