@@ -4,7 +4,7 @@ from email.mime.text import MIMEText
 from googleapiclient.errors import HttpError
 from googleapiclient.discovery import build
 from backend.assistant_app.utils.handle_errors import retry_on_rate_limit_async
-from backend.assistant_app.api_integration.google_token_store import load_credentials
+from backend.assistant_app.api_integration.google_token_store import load_credentials, handle_google_api_error
 
 MAX_RESULTS = 10
 
@@ -72,10 +72,18 @@ async def search_gmail(query: str, user_email: str):
     """
     Search Gmail messages with retry logic.
     """
-    creds = load_credentials(user_email)
-    service = build("gmail", "v1", credentials=creds)
-
-    return await _search_gmail(service, query)
+    try:
+        creds = load_credentials(user_email)
+        if not creds:
+            return "Gmail authentication required. Please complete the Google OAuth process."
+        
+        service = build("gmail", "v1", credentials=creds)
+        return await _search_gmail(service, query)
+    except Exception as e:
+        # Handle credential errors
+        if handle_google_api_error(e, user_email, "search_gmail"):
+            return "Gmail authentication expired. Please re-authenticate with Google."
+        raise
 
 
 async def send_gmail(to: str, subject: str, body: str, user_email: str):
@@ -87,22 +95,31 @@ async def send_gmail(to: str, subject: str, body: str, user_email: str):
         subject: Email subject
         body: Email body (plain text)
     """
-    creds = load_credentials(user_email)
-    service = build("gmail", "v1", credentials=creds)
+    try:
+        creds = load_credentials(user_email)
+        if not creds:
+            return "Gmail authentication required. Please complete the Google OAuth process."
+        
+        service = build("gmail", "v1", credentials=creds)
 
-    message = MIMEText(body)
-    message["to"] = to
-    message["subject"] = subject
-    raw = base64.urlsafe_b64encode(message.as_bytes()).decode()
+        message = MIMEText(body)
+        message["to"] = to
+        message["subject"] = subject
+        raw = base64.urlsafe_b64encode(message.as_bytes()).decode()
 
-    message_body = {"raw": raw}
-    sent_message = (
-        service.users().messages().send(userId="me", body=message_body).execute()
-    )
-    return (
-        f"Email sent to {to} with subject '{subject}'. View: "
-        f"https://mail.google.com/mail/u/0/#inbox/{sent_message.get('id')}"
-    )
+        message_body = {"raw": raw}
+        sent_message = (
+            service.users().messages().send(userId="me", body=message_body).execute()
+        )
+        return (
+            f"Email sent to {to} with subject '{subject}'. View: "
+            f"https://mail.google.com/mail/u/0/#inbox/{sent_message.get('id')}"
+        )
+    except Exception as e:
+        # Handle credential errors
+        if handle_google_api_error(e, user_email, "send_gmail"):
+            return "Gmail authentication expired. Please re-authenticate with Google."
+        raise
 
 
 async def reply_to_gmail(message_id: str, body: str, user_email: str):
@@ -119,10 +136,13 @@ async def reply_to_gmail(message_id: str, body: str, user_email: str):
             f"Invalid message_id: '{message_id}'. Please provide a valid Gmail message ID."
         )
 
-    creds = load_credentials(user_email)
-    service = build("gmail", "v1", credentials=creds)
-
     try:
+        creds = load_credentials(user_email)
+        if not creds:
+            return "Gmail authentication required. Please complete the Google OAuth process."
+        
+        service = build("gmail", "v1", credentials=creds)
+
         # Get the original message to extract headers
         original = service.users().messages().get(
             userId='me',
@@ -136,6 +156,14 @@ async def reply_to_gmail(message_id: str, body: str, user_email: str):
                 f"Could not find the email with ID {message_id}. "
                 "It may have been deleted or is not accessible."
             )
+        # Handle credential errors
+        if handle_google_api_error(e, user_email, "reply_to_gmail"):
+            return "Gmail authentication expired. Please re-authenticate with Google."
+        raise
+    except Exception as e:
+        # Handle credential errors
+        if handle_google_api_error(e, user_email, "reply_to_gmail"):
+            return "Gmail authentication expired. Please re-authenticate with Google."
         raise
 
     headers = {h["name"]: h["value"] for h in original["payload"]["headers"]}

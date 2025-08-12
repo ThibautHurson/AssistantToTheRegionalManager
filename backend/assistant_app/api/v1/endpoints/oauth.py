@@ -1,17 +1,16 @@
 import traceback
 from fastapi import APIRouter, HTTPException
-from pydantic import BaseModel
+from google_auth_oauthlib.flow import Flow
 from backend.assistant_app.services.auth_service import auth_service
 from backend.assistant_app.api_integration.google_token_store import (
-    get_authorization_url, exchange_code_for_token, clear_credentials
+    get_authorization_url, exchange_code_for_token, clear_credentials,
+    load_client_config, save_to_redis, REDIRECT_URI, SCOPES
 )
 from backend.assistant_app.utils.logger import auth_logger, error_logger
 
 router = APIRouter()
 
-class OAuthCallbackRequest(BaseModel):
-    code: str
-    state: str
+
 
 @router.get("/authorize")
 async def authorize(session_token: str = None):
@@ -42,7 +41,7 @@ async def authorize(session_token: str = None):
         auth_logger.log_info("Generating authorization URL", {"user_email": user.email})
 
         # Get authorization URL
-        auth_url = get_authorization_url(user.email)
+        auth_url, _ = get_authorization_url(session_token)
 
         if not auth_url:
             auth_logger.log_info("Already OAuth authenticated (from get_authorization_url)", {
@@ -69,10 +68,17 @@ async def authorize(session_token: str = None):
         })
         raise HTTPException(status_code=500, detail="Internal server error")
 
-@router.post("/oauth2callback")
-async def oauth2callback(request: OAuthCallbackRequest, session_token: str = None):
+@router.get("/oauth2callback")
+async def oauth2callback(code: str = None, state: str = None, session_token: str = None):
     """Handle OAuth callback and exchange code for token."""
-    auth_logger.log_debug("OAuth callback received", {"session_token": session_token})
+    auth_logger.log_debug("OAuth callback received", {
+        "session_token": session_token,
+        "code": code[:10] + "..." if code else None,
+        "state": state[:10] + "..." if state else None
+    })
+
+    if not code or not state or not session_token:
+        raise HTTPException(status_code=400, detail="Missing required OAuth parameters")
 
     try:
         # Validate session and get user
@@ -81,9 +87,9 @@ async def oauth2callback(request: OAuthCallbackRequest, session_token: str = Non
             raise HTTPException(status_code=401, detail="Invalid session token")
 
         # Exchange authorization code for token
-        success = exchange_code_for_token(request.code, user.email)
+        creds = exchange_code_for_token(code, state, session_token)
 
-        if success:
+        if creds:
             # Update user's OAuth status
             auth_service.update_oauth_status(user.id, True)
 
@@ -120,3 +126,65 @@ async def clear_user_credentials(session_token: str = None):
     except Exception as e:
         error_logger.log_error(e, {"context": "clear_credentials"})
         raise HTTPException(status_code=500, detail="Failed to clear credentials")
+
+@router.get("/re-authenticate")
+async def re_authenticate(session_token: str = None):
+    """Force re-authentication by clearing credentials and returning new auth URL."""
+    if not session_token:
+        raise HTTPException(status_code=400, detail="Session token required")
+
+    try:
+        # Validate session and get user
+        user = auth_service.validate_session(session_token)
+        if not user:
+            raise HTTPException(status_code=401, detail="Invalid session token. Please log in again.")
+
+        # Clear existing credentials
+        clear_credentials(user.email)
+        
+        # Update user's OAuth status to False
+        auth_service.update_oauth_status(user.id, False)
+
+        # Generate new authorization URL without calling get_authorization_url
+        # to avoid the session validation issue
+        try:
+            # Load client configuration
+            client_config = load_client_config()
+            if not client_config:
+                raise HTTPException(status_code=500, detail="OAuth configuration not found")
+
+            # Create Flow instance with explicit redirect URI that includes session_token
+            redirect_uri_with_token = f"{REDIRECT_URI}?session_token={session_token}"
+
+            flow = Flow.from_client_config(
+                client_config,
+                scopes=SCOPES,
+                redirect_uri=redirect_uri_with_token
+            )
+
+            # Generate authorization URL
+            auth_url, state = flow.authorization_url(
+                access_type="offline",
+                include_granted_scopes="true",
+                prompt="consent"  # Force consent screen to ensure all scopes are granted
+            )
+
+            # Store state in Redis for verification
+            save_to_redis(user.email, "oauth_state", state)
+
+            auth_logger.log_info("Re-authentication initiated", {"user_email": user.email})
+            
+            return {
+                "message": "Re-authentication required",
+                "auth_url": auth_url,
+                "requires_reauth": True
+            }
+        except Exception as flow_error:
+            error_logger.log_error(flow_error, {"context": "generate_auth_url_in_reauthenticate"})
+            raise HTTPException(status_code=500, detail="Failed to generate authorization URL")
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        error_logger.log_error(e, {"context": "re_authenticate"})
+        raise HTTPException(status_code=500, detail="Failed to initiate re-authentication")

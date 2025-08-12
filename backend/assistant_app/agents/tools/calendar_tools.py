@@ -6,16 +6,22 @@ from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
 
 
-from backend.assistant_app.api_integration.google_token_store import load_credentials
+from backend.assistant_app.api_integration.google_token_store import load_credentials, handle_google_api_error
 
 load_dotenv()
 
 def get_calendar_service(user_email: str):
     """Get Google Calendar service for a user."""
-    creds = load_credentials(user_email)
-    if not creds:
-        raise ValueError(f"No valid credentials found for {user_email}")
-    return build("calendar", "v3", credentials=creds)
+    try:
+        creds = load_credentials(user_email)
+        if not creds:
+            raise ValueError(f"No valid credentials found for {user_email}")
+        return build("calendar", "v3", credentials=creds)
+    except Exception as e:
+        # Handle credential errors
+        if handle_google_api_error(e, user_email, "get_calendar_service"):
+            raise ValueError("Gmail authentication expired. Please re-authenticate with Google.")
+        raise
 
 def list_calendar_events(user_email: str, calendar_id: str = "primary", max_results: int = 10,
                         time_min: Optional[str] = None, time_max: Optional[str] = None) -> str:

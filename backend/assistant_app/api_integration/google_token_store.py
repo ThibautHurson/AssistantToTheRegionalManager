@@ -47,6 +47,56 @@ SCOPES = [
     "https://www.googleapis.com/auth/calendar.events"
 ]
 
+def handle_google_api_error(e: Exception, user_email: str, context: str = "unknown") -> bool:
+    """
+    Handle Google API errors and determine if credentials should be cleared.
+    
+    Args:
+        e: The exception that occurred
+        user_email: The user's email address
+        context: Context where the error occurred
+        
+    Returns:
+        bool: True if credentials should be cleared, False otherwise
+    """
+    error_str = str(e).lower()
+    
+    # Check for credential-related errors that require re-authentication
+    credential_errors = [
+        "invalid_grant",
+        "token has been expired or revoked",
+        "invalid_scope",
+        "unauthorized",
+        "invalid_credentials",
+        "access_denied"
+    ]
+    
+    should_clear = any(error in error_str for error in credential_errors)
+    
+    if should_clear:
+        gmail_logger.log_warning("Google API credential error detected", {
+            "user_email": user_email,
+            "context": context,
+            "error": str(e),
+            "error_type": "credential_error"
+        })
+        
+        # Clear credentials
+        clear_credentials(user_email)
+        
+        # Update user's OAuth status to False
+        try:
+            user = auth_service.get_user_by_email(user_email)
+            if user:
+                auth_service.update_oauth_status(user.id, False)
+        except Exception as auth_error:
+            error_logger.log_error(auth_error, {
+                "context": "update_oauth_status_after_api_error",
+                "user_email": user_email
+            })
+    
+    return should_clear
+
 def load_client_config():
     """Load OAuth2 client configuration from file."""
     if not os.path.exists(CLIENT_SECRET_FILE):
@@ -109,12 +159,8 @@ def load_credentials(user_email: str) -> Optional[Credentials]:
             setup_gmail_watch(user_email, creds)
         except Exception as e:
             error_logger.log_error(e, {"context": "refresh_token", "user_email": user_email})
-            # If refresh fails due to scope issues, clear credentials to force new OAuth
-            if "invalid_scope" in str(e):
-                gmail_logger.log_warning("Scope mismatch detected, clearing credentials", {
-                    "user_email": user_email
-                })
-                clear_credentials(user_email)
+            # Use the centralized error handler
+            handle_google_api_error(e, user_email, "refresh_token")
             return None
     gmail_logger.log_debug("Returning credentials", {"user_email": user_email})
     return creds if creds and creds.valid else None

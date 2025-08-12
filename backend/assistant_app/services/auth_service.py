@@ -148,6 +148,15 @@ class AuthService:
         finally:
             db.close()
 
+    def get_user_by_email(self, email: str) -> Optional[User]:
+        """Get user by email address."""
+        db = next(get_db())
+        try:
+            user = db.query(User).filter(User.email == email).first()
+            return user
+        finally:
+            db.close()
+
     def get_user_session_info(self, session_token: str) -> Optional[Dict[str, Any]]:
         """Get comprehensive session information including user details."""
         user = self.validate_session(session_token)

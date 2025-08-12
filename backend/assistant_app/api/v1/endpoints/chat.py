@@ -62,11 +62,28 @@ async def chat(
         )
 
     # Check if user has OAuth authentication for Gmail
-    creds = load_credentials(user.email)
-    if not creds or not creds.valid:
+    creds = None
+    try:
+        creds = load_credentials(user.email)
+        if not creds or not creds.valid:
+            raise HTTPException(
+                status_code=401,
+                detail="Gmail not authenticated. Please complete the Google OAuth process."
+            )
+    except Exception as e:
+        # Handle credential errors gracefully
+        from backend.assistant_app.api_integration.google_token_store import handle_google_api_error
+        if handle_google_api_error(e, user.email, "chat_endpoint"):
+            # Refresh user object to get updated OAuth status
+            user = auth_service.get_user_by_email(user.email)
+            if not user or not user.is_oauth_authenticated:
+                raise HTTPException(
+                    status_code=401,
+                    detail="Gmail authentication expired. Please re-authenticate with Google."
+                )
         raise HTTPException(
-            status_code=401,
-            detail="Gmail not authenticated. Please complete the Google OAuth process."
+            status_code=500,
+            detail="Error loading Gmail credentials. Please try again."
         )
 
     # Generate or use provided chat session ID
